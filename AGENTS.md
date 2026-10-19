@@ -31,3 +31,13 @@ On 3 meaningfully different unsuccessful attempts at the **same blocker**, stop 
 - Metrics and artifact locations:
 - Deviations / uncertainty:
 - Next proposed bounded run (not automatically launched):
+
+## 研究者与 Codex 分工（强制读取）
+
+**Before any execution, read [docs/HUMAN_CODEX_WORKFLOW.md](docs/HUMAN_CODEX_WORKFLOW.md).**
+
+- 研究者主导研究问题、创新、核心算法公式、实验原则和故障判断，并最终能够独立面试答辩；Codex 讲解、实现、运行、记录和提供证据。
+- 每关必须交付原理与源码映射、3 个需要研究者回答的问题、验证数据、待审批决策；没有证据不标记完成。
+- 主 FR3 工程在五篇小论文复现完成并获用户明确许可前**保持冻结**；本仓库可独立复现但禁止擅自迁移/修改主工程。
+- MPC 等非当前任务所需知识按需讲解，不得以“先学完全部理论”为复现前置条件。
+- 新窗口/新 Codex 会话仍应服从上述约束，不能仅阅读本文件而跳过链接中的完整分工表。
