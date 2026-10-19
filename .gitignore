@@ -1,0 +1,30 @@
+# Transient tooling
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.cache/
+.ipynb_checkpoints/
+.DS_Store
+# Data, heavy simulation assets and temporary training products
+wandb/
+runs/
+logs/
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.usd
+*.usdc
+*.h5
+*.bag
+*.db3
+*.mp4
+*.mov
+*.zip
+*.tar.gz
+assets/raw/
+data/raw/
+results/raw/
