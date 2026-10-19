@@ -42,3 +42,9 @@
 
 ## Local setup
 Clone this orchestration repo and the upstream source **separately**. Use upstream's pinned installation instructions (do not blindly upgrade the user's existing Isaac Sim/ROS2 environments).
+
+## 人与 Codex 学习分工（必读）
+
+- [职责分工与逐阶段学习验收](docs/HUMAN_CODEX_WORKFLOW.md) — 研究者主导原理、实验原则和故障判断；Codex 主导实现、实验、日志；每阶段提供核心公式/源码导读、3 道理解检查题和实验证据。
+- **研究边界**：五篇小论文复现完成并获得明确恢复指令前，双 FR3 主工程不推进、不被本仓库修改。独立开源复现可以正常进行。
+- **[新会话从 M0 开始：完整交接清单](docs/M0_START_HERE.md)** — 先读论文/上游任务、核对 PPO/SAC 支持与环境兼容性；不直接启动大规模训练。
