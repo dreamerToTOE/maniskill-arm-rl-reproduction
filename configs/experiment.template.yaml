@@ -1,0 +1,24 @@
+# EXAMPLE ONLY — not executed; edit and archive per experiment
+experiment_id: EXP-TBD
+project: maniskill-arm-rl-reproduction
+framework: ManiSkill3
+task_id: PickCube-v1
+algorithm: PPO
+upstream_commit_sha: UNPINNED
+simulator_version: UNVERIFIED
+robot_model: TBD
+seed: 0
+train_env_steps: 0
+eval_episodes: 0
+separate_eval_seed: true
+obs_mode: TBD
+action_mode: TBD
+physics_dt: null
+policy_dt: null
+reward_config: TBD
+termination_config: TBD
+domain_randomization: {}
+baseline_checkpoint: null
+artifact_directory: results/raw/EXP-TBD
+evaluation_metrics: [success_rate,return,steps_to_success]
+status: NOT_STARTED
