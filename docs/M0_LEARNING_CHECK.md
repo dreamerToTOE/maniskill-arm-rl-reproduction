@@ -34,3 +34,8 @@ First independent response reviewed on 2026-10-19; corrections below. No environ
 3. In SAC, list the five replay entries, explain both critics' target and actor objective, and why this objective uses Q directly without PPO's GAE; what does alpha do?
 
 **Gate:** Await answers and review. Do not proceed to training. M0 source review complete, learner gate pending.
+
+
+## Follow-up conceptual answers — 2026-10-19 (M1 preparation gate)
+
+Researcher subsequently correctly distinguished PPO on-policy V(s)/GAE/Clip from SAC Twin-Q(s,a)/actor objective, recognized that both critics train, and understood minimizing negative Q encourages high-value actions (subject to entropy). Reviewed: Q1 correct with entropy qualification; Q2 partially correct because gradient via reparameterization not yet independently explained; Q3 correct. **Core theoretical M0 lesson broadly covered; not all seven original M0 checks independently answered**. Further mechanics (SAC rsample/alpha, contact controller semantics) are deferred to appropriate stages, not falsely marked mastered. Host compatibility/smoke evidence still absent; formal M0 NOT_PASSED. User explicitly requested starting M1 preparation, NOT an approval to change system toolchains or begin training.

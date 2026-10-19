@@ -1,0 +1,70 @@
+# M1 START HERE — PickCube task introspection (preparation only)
+
+> State: **PREPARED / NOT_RUN**. This file and the proposed script are not proof of an installed or working environment.
+> Date: 2026-10-19
+> Independent repo: dreamerToTOE/maniskill-arm-rl-reproduction
+> Upstream proposal: ManiSkill v3.0.1, immutable commit `a4a4f9272ad64b1564035874b605ceb687b63ed8`
+
+## Scope and gating
+
+M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Formal M0 gate remains open because an Ubuntu host version/VRAM/dependency audit and a specific approved smoke plan are missing. Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
+
+Researcher owns acceptance/experimental design; Codex owns environment inspection, isolated setup on user-approved host, implementation and evidence. Do NOT run training, install system packages, upgrade CUDA/drivers/ROS2/Isaac Sim, or modify other repos.
+
+## Task-specific source map — pinned v3.0.1
+
+| Investigation | Exact upstream source | Expected behavior from code reading |
+|---|---|---|
+| Gym task registration / horizon | `mani_skill/envs/tasks/tabletop/pick_cube.py` `@register_env("PickCube-v1", max_episode_steps=50)` | 50 environment control steps max, unless wrapper/horizon overridden |
+| Panda robot/controller | `mani_skill/agents/robots/panda/panda.py` `_controller_configs` | `pd_joint_delta_pos` normalized joint-position increments, arm ±0.1 rad, gripper included; `pd_ee_delta_pos` arm translation ±0.1 m/axis, gripper included |
+| State observation | `mani_skill/envs/sapien_env.py` `_get_obs_state_dict`, `_flatten_raw_obs`; `pick_cube.py` `_get_obs_extra` | `state_dict = {"agent": proprioception(qpos,qvel,...), "extra": task signals}`; `state` is a flattened tensor, task extra includes grasp indicator, tcp and goal pose, object pose + relative vectors |
+| Reset/randomization | `pick_cube.py` `_initialize_episode`, `sapien_env.py` `reset` | Random cube XY/yaw and goal XY/Z; try same seed, record what actually matches; do not assume GPU bitwise determinism |
+| Reward | `pick_cube.py` `compute_dense_reward`, `compute_normalized_dense_reward` | reach + grasp + grasp-gated place + placed-gated static, success override 5; normalized reward /5 |
+| Success | `pick_cube.py` `evaluate` | distance(cube,goal) <= goal_thresh + Panda arm static threshold, no force-based safety criterion |
+| Dynamics/done | `sapien_env.py` `step` / `_step_action`, `mani_skill/utils/structs/types.py` `SimConfig` | default 100Hz sim, 20Hz control = 5 physics steps per env.step. Terminated on success/fail; horizon truncation comes from wrapper |
+| CPU vs GPU wrappers | `mani_skill/utils/wrappers/gymnasium.py` `CPUGymWrapper`; `mani_skill/vector/wrappers/gymnasium.py` `ManiSkillVectorEnv` | vectorized/CPU shapes, reset/auto-reset and ignore_terminations change semantics; must log wrappers |
+
+Source tree: https://github.com/mani-skill/ManiSkill/tree/a4a4f9272ad64b1564035874b605ceb687b63ed8/
+
+## Work package M1-A — read-only host audit and review (no install)
+
+1. In the orchestration repo on the learner's own Ubuntu host: `python3 scripts/audit_environment.py`; capture stdout and `nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv` for review.
+2. Confirm Python, torch CUDA runtime, SAPIEN/gymnasium, GPU free VRAM, target isolated venv path; confirm source SHA. No system changes. Record hardware evidence in `docs/UPSTREAM_LOCK.md` and `docs/PROGRESS.md`.
+3. Propose exact Python/Torch/SAPIEN wheel pins after inspecting local output and dependency compatibility. Installation requires explicit user permission. Disk/network costs TBD until solved; *do not imply zero installs*.
+
+## Work package M1-B — bounded CPU state smoke (approval required)
+
+After dependencies installed in a dedicated isolated environment, and after **explicit approval of this concrete smoke test**, run from orchestration repo with ManiSkill v3.0.1 importable:
+
+```bash
+# Inspect structured fields and execute at most THREE zero actions
+MS_SKIP_ASSET_DOWNLOAD_PROMPT=1 python scripts/m1_inspect_pickcube.py \
+  --obs-mode state_dict --action-mode zero --steps 3 --seed 0 \
+  --output results/m1_pickcube_state_dict_zero_seed0.json
+
+# Inspect the flattened state representation, separately (optional)
+MS_SKIP_ASSET_DOWNLOAD_PROMPT=1 python scripts/m1_inspect_pickcube.py \
+  --obs-mode state --action-mode zero --steps 3 --seed 0 \
+  --output results/m1_pickcube_state_zero_seed0.json
+```
+
+Expected command upper limit: **three environment steps per command, one CPU environment, no renders and no gradient update**, normally <5 minutes after dependencies/assets are installed; runtime unverified on this machine. CPU smoke avoids planned GPU parallel training allocation; runtime may still initialize graphics libraries depending on local installation. Approximate *training* VRAM requirement: none; runtime GPU allocation to be verified rather than invented. Disk for environment/wheels/assets **unknown pending dependency review**. Stop if download prompts, driver/Vulkan failure, missing assets, unbounded run, or unexpected resources.
+
+If the smoke is successful, **separately** request approval for an opt-in tiny arm action (normalized 0.1 on arm joint 1) to inspect controller scaling. It is NOT a grasping demo and cannot establish baseline success.
+
+## Required evidence and acceptance
+
+- Current installed version manifest, source SHA, exact commands, timestamp/host, smoke stdout and JSON artifacts.
+- Print full structured observation key names, tensor shapes/dtypes and flattened dimension; action low/high and dimensions, controller mode, sim/control rates, reward mode.
+- At every step record scalar reward, info success / grasp / placed / static if present, and terminated/truncated; capture the chosen action and number of steps.
+- Verify (not assume) gripper dimension, action unit scaling, reset reproducibility, trial and time-limit semantics; note when only code is inspected rather than execution verified.
+- No claims of training or learning. `M1 PASSED` only after researcher's 3-question review AND evidence of actual local reset/step smoke. M0 completion must be separately recorded once host audit and smoke approval criteria are met.
+
+## Three researcher understanding questions
+
+1. Why do `obs_mode=state_dict` and `obs_mode=state` expose the same underlying information in different formats? Which features are privileged simulation ground truth?
+2. Under Panda `pd_joint_delta_pos`, is a normalized action `a[0]=0.1` a 0.1-radian realized joint displacement? Trace policy output -> controller scaling -> PD -> PhysX; what else may prevent actual motion?
+3. In PickCube, why is `is_grasped=True` insufficient for success? Distinguish `success`, `terminated`, `truncated` and how `ignore_terminations` alters rollouts.
+
+### M1 status
+CODE_PATHS_SOURCE_VERIFIED / SCRIPT_PREPARED / HOST_NOT_AUDITED / INSTALL_NOT_APPROVED / SMOKE_NOT_RUN / TRAINING_NOT_RUN

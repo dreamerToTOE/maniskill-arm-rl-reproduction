@@ -1,6 +1,6 @@
 # Work Log / 复现进度日志
 
-**Status 2026-10-19: M0 SOURCE_AUDIT_COMPLETE / LEARNER_AND_HOST_CHECK_PENDING. No training, experimental reproduction, or hardware validation performed.**
+**Status 2026-10-19: M0 source/theory mostly done, host audit pending; M1 SOURCE/PREFLIGHT PREPARED, NOT_RUN. No training, local simulation, or hardware validation performed.**
 
 ## Running log
 | Date | Gate | Repo base commit | Work | Evidence | Outcome | Next |
@@ -10,11 +10,13 @@
 
 | 2026-10-19 | M0-LEARNING-01 | 4f37dc02732df6b0ccb597059cf79350f715bac4 | Reviewed researcher answers to three M0 theory questions; identified Actor/Critic vs advantage confusion and missing SAC direct-Q policy objective; provided corrections and focused recheck. | docs/M0_LEARNING_CHECK.md | PARTIAL / NOT_PASSED; Q1 pass, Q2 fail, Q3 partial | researcher reanswers 3 focused questions; NO TRAINING |
 
+| 2026-10-19 | M0 follow-up / M1-PREP | fa58dc1624f8d55b607cc435dea4aa879d650c49 | Reviewed further PPO/SAC answers and corrected remaining conceptual details; source-mapped PickCube state/action/reward/reset/done and prepared bounded CPU introspection script plus approval checklist. | docs/M0_LEARNING_CHECK.md; docs/M1_START_HERE.md; scripts/m1_inspect_pickcube.py | THEORY_BROADLY_COVERED / M1_PREPARED / CPU_SMOKE_NOT_RUN | read-only Ubuntu audit; propose isolated dependency plan and seek explicit smoke approval |
+
 ## Explicit unknowns/blockers
 1. Exact local Python/Torch/SAPIEN/CUDA runtime and available VRAM are **not observed** (no SSH/local-run tool); requested read-only audit needed.
 2. SAC tuned example for PegInsertionSide not located in pinned README; do not label official benchmark without evidence.
 3. Controller and reward/action dimensions not runtime checked; default scripts compare different control modes.
-4. Researcher first M0 answer reviewed; Q1 pass, Q2 core misconceptions, Q3 partial. Focused three-question recheck pending; exact M1 smoke configuration and time/compute approval not given.
+4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Host audit and specific bounded smoke permission pending. M0 not marked PASSED.
 5. Upstream issue #1469 warns about EE rotational-action sign for v3.0.1; do not modify upstream or claim this locally reproduced.
 
 ## Hard boundaries
