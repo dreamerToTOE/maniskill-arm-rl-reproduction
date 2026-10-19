@@ -1,0 +1,44 @@
+# ManiSkill Arm RL Reproduction | 机械臂强化学习复现
+
+> Status: **PLANNED / 未开始复现** · Job focus: robotic manipulation + RL · Owner: dreamerToTOE
+
+## Objective / 目标
+以 **ManiSkill 3** 为基座复现机械臂操作任务中的基线强化学习算法，在可控的实验设置下，对比 PPO / SAC 训练性能、样本效率、接触操作稳定性和泛化效果。先完成公开 Baseline，再开展明确标识的个人扩展；严禁将上游结果写成个人实验结果。
+
+- Upstream: https://github.com/mani-skill/ManiSkill
+- Official docs: https://maniskill.readthedocs.io/
+- Paper: https://arxiv.org/abs/2410.00425
+- Related existing project: https://github.com/dreamerToTOE/fr3-robot-rl-control-lab
+
+## Tasks / 任务
+1. **PickCube**: pick-and-place, sparse vs dense reward and joint vs end-effector action.
+2. **PushCube**: contact-rich manipulation, reward shaping and action safety.
+3. **PegInsertionSide**: contact-rich insertion, train/evaluate with controls and criteria supported by pinned upstream; record any SAC baseline implementation work separately.
+4. **FR3 transfer (optional)**: map ideas to the existing Isaac Sim FR3 push-into-slot environment without claiming identical physics.
+
+## Reproduction milestones / 复现关卡
+| Gate | Deliverable | Acceptance |
+|---|---|---|
+| M0 | Repo, upstream pin, environment audit | Versions, GPU memory, task list and reproducible setup recorded |
+| M1 | Environment and observation audit | Explain state/action/reward/reset; zero-action + scripted smoke tests |
+| M2 | Official baseline replay | Obtain learning curves, checkpoints and >=3 seeds; note if impossible |
+| M3 | PPO vs SAC comparison | Same task/observation/evaluation budget; explicitly mark algorithm support and custom baselines |
+| M4 | Reward/observation ablations | At least 2 meaningful ablations with failure diagnostics |
+| M5 | Robustness and report | Independent evaluation, task success CI, plots, videos, method-to-code mapping |
+| M6 | Optional FR3 application | Cross-simulator differences, contact limitations and new evaluation |
+
+**Do not assume every task provides both official PPO and SAC.** Verify official training scripts for the pinned commit before scheduling an experiment; if absent, record a new implementation rather than calling it an official reproduction.
+
+## Repo guide
+- [AGENTS.md](AGENTS.md) — Codex collaboration and approval constraints
+- [docs/REPRODUCTION_PLAN.md](docs/REPRODUCTION_PLAN.md) — detailed step-by-step execution
+- [docs/EXPERIMENT_MATRIX.md](docs/EXPERIMENT_MATRIX.md) — immutable experiment schema
+- [docs/PAPER_CODE_ALIGNMENT.md](docs/PAPER_CODE_ALIGNMENT.md) — algorithm/paper/code comparison
+- [docs/FAILURE_LOG.md](docs/FAILURE_LOG.md) — failures, root causes and retry cap
+- [docs/RESUME_EVIDENCE.md](docs/RESUME_EVIDENCE.md) — evidence required before CV statements
+
+## Principle
+**Zero experimental results at initialization.** Every claim must point to a real local artifact and pinned upstream SHA; final report distinguishes exact reproduction / approximation / extension / not completed. No real-world deployment claim without physical tests.
+
+## Local setup
+Clone this orchestration repo and the upstream source **separately**. Use upstream's pinned installation instructions (do not blindly upgrade the user's existing Isaac Sim/ROS2 environments).
