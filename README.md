@@ -48,3 +48,9 @@ Clone this orchestration repo and the upstream source **separately**. Use upstre
 - [职责分工与逐阶段学习验收](docs/HUMAN_CODEX_WORKFLOW.md) — 研究者主导原理、实验原则和故障判断；Codex 主导实现、实验、日志；每阶段提供核心公式/源码导读、3 道理解检查题和实验证据。
 - **研究边界**：五篇小论文复现完成并获得明确恢复指令前，双 FR3 主工程不推进、不被本仓库修改。独立开源复现可以正常进行。
 - **[新会话从 M0 开始：完整交接清单](docs/M0_START_HERE.md)** — 先读论文/上游任务、核对 PPO/SAC 支持与环境兼容性；不直接启动大规模训练。
+
+## Final mock interview / 项目面试验收（独立关卡）
+
+- [正式验收标准与本项目专属问题](docs/FINAL_INTERVIEW_GATE.md)：3 分钟项目陈述、公式/控制原理、源码追踪、实验与统计、失败诊断和个人贡献。建议 100 分制，达到 80 分且各模块达标才通过，重大来源/实验真实性错误直接不通过。
+- [面试原始记录与评分模板](docs/INTERVIEW_RECORD_TEMPLATE.md)：记录面试官提问、研究者本人原始回答、分项得分、弱项与补强方案；未实际面试保持 NOT_STARTED。
+- **复现技术验收与求职面试验收分开记录**：Codex 可以组织材料和出题，但不能替研究者应答，也不能自动标记 PASS。项目未完成时可以进行阶段练习，不算最终验收。
