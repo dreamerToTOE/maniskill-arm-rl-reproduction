@@ -63,6 +63,9 @@ If the smoke is successful, **separately** request approval for an opt-in tiny a
 
 ## Three researcher understanding questions
 
+> **先读学习包：[docs/M1_LEARNING_PACK.md](M1_LEARNING_PACK.md)**（原理一页纸 + 代码导读 + 三道题的完整上下文）。
+> 下面的问题来自执行前的准备文档，学习包里已用本次实测数据重写并补充了提示来源。
+
 1. Why do `obs_mode=state_dict` and `obs_mode=state` expose the same underlying information in different formats? Which features are privileged simulation ground truth?
 2. Under Panda `pd_joint_delta_pos`, is a normalized action `a[0]=0.1` a 0.1-radian realized joint displacement? Trace policy output -> controller scaling -> PD -> PhysX; what else may prevent actual motion?
 3. In PickCube, why is `is_grasped=True` insufficient for success? Distinguish `success`, `terminated`, `truncated` and how `ignore_terminations` alters rollouts.

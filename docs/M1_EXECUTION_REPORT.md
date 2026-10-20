@@ -161,8 +161,13 @@ MS_SKIP_ASSET_DOWNLOAD_PROMPT=1 \
 - **[源码] 控制链**：`env.step` → `_step_action` → `controller.set_action` → `_preprocess_action`
   （`clip_and_scale_action`）→ `set_drive_targets` → 每个 control step 内跑
   `_sim_steps_per_control = sim_freq/control_freq = 100/20 = 5` 次 `scene.step()` → PhysX PD 驱动（stiffness 1000 / damping 100 / force_limit 100）。
-- **[实测] 零动作不等于完全静止**：3 步内 qpos 相对 reset 的最大偏移 0.0098 → 0.0158 → 0.0194 rad，
-  原因是重力下的 PD 稳态沉降；但 `is_robot_static` 仍为 True（阈值 0.2 rad/s）。
+- **[实测] 零动作不等于"什么都不做"（逐关节诊断，已修正早期误判）**：3 步零动作下
+  **臂 7 个关节的 qpos 完全不变（delta = 0.0）**；真正变化的是夹爪手指，0.0400 → 0.0206（−0.0194）。
+  原因：臂是 `use_delta=True` 且 `use_target=False`，目标每步重设为当时 qpos → 原地保持；
+  夹爪是绝对目标，零动作映射到区间中点 `0.5(−0.01+0.04) = 0.015 m`（实测 `_target_qpos` =
+  0.014999999664723873）。**早期草稿曾把 0.0194 的位移归因为"重力下 PD 稳态沉降"，逐关节实测证明
+  它全部来自夹爪闭合，已更正；`is_robot_static` 仍为 True，因为该判定排除两根手指
+  （`qvel[..., :-2]`）。**
 
 ### 4.3 Reward
 
