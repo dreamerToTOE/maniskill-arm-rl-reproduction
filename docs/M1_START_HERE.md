@@ -1,13 +1,13 @@
 # M1 START HERE — PickCube task introspection (preparation only)
 
-> State: **PREPARED / NOT_RUN**. This file and the proposed script are not proof of an installed or working environment.
+> State: **HOST_VERSIONS_OBSERVED / CPU_SMOKE_NOT_RUN**. This file and the proposed script are not proof of an installed or working environment.
 > Date: 2026-10-19
 > Independent repo: dreamerToTOE/maniskill-arm-rl-reproduction
 > Upstream proposal: ManiSkill v3.0.1, immutable commit `a4a4f9272ad64b1564035874b605ceb687b63ed8`
 
 ## Scope and gating
 
-M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Formal M0 gate remains open because an Ubuntu host version/VRAM/dependency audit and a specific approved smoke plan are missing. Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
+M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Learner provided a real read-only host audit on 2026-10-20: CPython 3.10.12, RTX 3070 with 8192 MiB total, NVIDIA driver 580.178.04, NumPy 1.24.4; no torch/sapien/gymnasium/mani_skill distributions in that interpreter. Formal M0 gate still open because free VRAM/disk, dependency integration, and approved CPU smoke evidence are missing. Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
 
 Researcher owns acceptance/experimental design; Codex owns environment inspection, isolated setup on user-approved host, implementation and evidence. Do NOT run training, install system packages, upgrade CUDA/drivers/ROS2/Isaac Sim, or modify other repos.
 
@@ -28,7 +28,7 @@ Source tree: https://github.com/mani-skill/ManiSkill/tree/a4a4f9272ad64b15640358
 
 ## Work package M1-A — read-only host audit and review (no install)
 
-1. In the orchestration repo on the learner's own Ubuntu host: `python3 scripts/audit_environment.py`; capture stdout and `nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv` for review.
+1. **DONE user-reported**: `python3 scripts/audit_environment.py` returned Python 3.10.12, RTX 3070 8GB, driver 580.178.04; output captured in docs/UPSTREAM_LOCK.md. **NEXT read-only**: `nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv`; `df -h .`; `python3 -m pip --version`.
 2. Confirm Python, torch CUDA runtime, SAPIEN/gymnasium, GPU free VRAM, target isolated venv path; confirm source SHA. No system changes. Record hardware evidence in `docs/UPSTREAM_LOCK.md` and `docs/PROGRESS.md`.
 3. Propose exact Python/Torch/SAPIEN wheel pins after inspecting local output and dependency compatibility. Installation requires explicit user permission. Disk/network costs TBD until solved; *do not imply zero installs*.
 
@@ -67,4 +67,4 @@ If the smoke is successful, **separately** request approval for an opt-in tiny a
 3. In PickCube, why is `is_grasped=True` insufficient for success? Distinguish `success`, `terminated`, `truncated` and how `ignore_terminations` alters rollouts.
 
 ### M1 status
-CODE_PATHS_SOURCE_VERIFIED / SCRIPT_PREPARED / HOST_NOT_AUDITED / INSTALL_NOT_APPROVED / SMOKE_NOT_RUN / TRAINING_NOT_RUN
+CODE_PATHS_SOURCE_VERIFIED / SCRIPT_PREPARED / HOST_VERSIONS_OBSERVED / FREE_VRAM_DISK_UNKNOWN / INSTALL_NOT_APPROVED / SMOKE_NOT_RUN / TRAINING_NOT_RUN
