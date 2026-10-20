@@ -1,6 +1,6 @@
 # M1 researcher learning review — 2026-10-20
 
-**Status: PARTIAL_PASS / CORRECTION_REQUIRED; M1 NOT PASSED.** CPU smoke and interface measurements passed separately; PPO/SAC training NOT_RUN; GPU benchmark NOT_RUN.
+**Status: M1 THEORY PASSED / M1 OVERALL PASSED (2026-10-20).** Isolated environment, CPU smoke and interface evidence independently passed. PPO/SAC training NOT_RUN; GPU benchmark NOT_RUN. Original incorrect responses preserved below for provenance.
 
 ## Verbatim first researcher answers
 
@@ -42,4 +42,15 @@ Source: `mani_skill/agents/robots/panda/panda.py::_controller_configs` and `mani
 - Tracking error **0.02 rad: correct** (`0.45-0.43`).
 - Second commanded target **0.48 rad: correct** (`0.43+0.05`) with `use_target=False`.
 
-**Next:** Researcher only needs to independently restate the actual displacement `q_actual-q_initial`, its value and why `0.43` is not a displacement. No more broad questions or extra simulation needed. `M1_THEORY=PARTIAL_PASS_RECHECK_ONE_VALUE`; `M1_OVERALL=NOT_YET_PASSED`. Do not launch training or cloud GPU work.
+**Next:** Researcher only needs to independently restate the actual displacement `q_actual-q_initial`, its value and why `0.43` is not a displacement. No more broad questions or extra simulation needed. `M1_THEORY=PARTIAL_PASS_RECHECK_ONE_VALUE` at that time; researcher correction received later. Do not launch training or cloud GPU work.
+
+
+## Final researcher correction and M1 acceptance — 2026-10-20
+
+**Researcher's verbatim correction:** `对，是0.03，我打错了`.
+
+This corrects the remaining notational/calculation error: initial `q0=0.40 rad`, actual post-step position `q_actual=0.43 rad`, so **actual displacement is `Δq_actual=q_actual−q0=+0.03 rad`**, distinct from commanded `Δq_target=+0.05 rad`. Researcher had already correctly computed first commanded target 0.45 rad, tracking error 0.02 rad, and next target 0.48 rad in the preceding attempt. Earlier answers preserved verbatim.
+
+**Reviewer decision:** `Q1=PASS_AFTER_CORRECTION`, `Q2=BASIC_PASS`, `Q3=PASS`; `M1_THEORY=PASSED`. Prior isolated installation, PickCube CPU 3-zero-action smoke and interface evidence already `PASSED`; **`M1_OVERALL=PASSED` for the agreed scope**. This is **not** evidence of RL training success or GPU viability. GPU device nodes absent in local agent execution shell, and researcher's normal-terminal torch CUDA availability remains untested.
+
+**Next gate:** M2 official baseline study + environment GPU visibility check (read-only) first. PPO pilot, GPU simulator benchmark, full training and cloud rental require separate approval. The broader historical M0 rubric is documented independently; do not silently mark unreviewed M0 questions complete.

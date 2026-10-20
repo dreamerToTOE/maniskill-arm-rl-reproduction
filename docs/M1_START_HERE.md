@@ -1,6 +1,6 @@
-# M1 START HERE — PickCube task introspection (executed; awaiting review)
+# M1 START HERE — PickCube task introspection (accepted 2026-10-20)
 
-> State: **ENV_INSTALLED / CPU_SMOKE_EXECUTED_PASSED / INTERFACE_RUNTIME_VERIFIED / M1_NOT_MARKED_PASSED (researcher review pending)**. Date: 2026-10-20.
+> State: **M1 PASSED: ENV_INSTALLED / CPU_SMOKE_PASSED / INTERFACE_RUNTIME_VERIFIED / RESEARCHER_THEORY_PASSED**. Date: 2026-10-20.
 > Full evidence, measured numbers and deviations: **[M1_EXECUTION_REPORT.md](M1_EXECUTION_REPORT.md)**.
 > Independent repo: dreamerToTOE/maniskill-arm-rl-reproduction
 > Executed base commit: `4a4e5ff92fd4a1de13e9b0ed57a09d15d363e902`
@@ -8,7 +8,7 @@
 
 ## Scope and gating
 
-M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Learner provided a real read-only host audit on 2026-10-20: CPython 3.10.12, RTX 3070 with 8192 MiB total, NVIDIA driver 580.178.04, NumPy 1.24.4; no torch/sapien/gymnasium/mani_skill distributions in that interpreter. Formal M0 gate still open because isolated dependency integration and CPU smoke evidence are missing (free VRAM 5957 MiB and disk free 418G observed). On 2026-10-20 researcher approved the *bounded isolated installation and one CPU smoke*, not training or GPU microbench. Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
+M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Learner provided a real read-only host audit on 2026-10-20: CPython 3.10.12, RTX 3070 with 8192 MiB total, NVIDIA driver 580.178.04, NumPy 1.24.4; no torch/sapien/gymnasium/mani_skill distributions in that interpreter. Subsequent approved isolated dependency installation, CPU smoke and M1 researcher theory assessment have passed; the broader M0 learning rubric is a separately tracked gate. RTX 3070 free VRAM was 5957 MiB at prior host read-only audit and disk free 418G. On 2026-10-20 researcher approved the *bounded isolated installation and one CPU smoke*, not training or GPU microbench. Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
 
 Researcher owns acceptance/experimental design; Codex owns environment inspection, isolated setup on user-approved host, implementation and evidence. Do NOT run training, install system packages, upgrade CUDA/drivers/ROS2/Isaac Sim, or modify other repos.
 
@@ -29,11 +29,11 @@ Source tree: https://github.com/mani-skill/ManiSkill/tree/a4a4f9272ad64b15640358
 
 ## Work package M1-A — read-only host audit and review (no install)
 
-1. **DONE user-reported**: `python3 scripts/audit_environment.py` returned Python 3.10.12, RTX 3070 8GB, driver 580.178.04; output captured in docs/UPSTREAM_LOCK.md. **ALSO DONE user-reported**: `nvidia-smi` → 5957 MiB free VRAM; `df -h .` → 418G disk free; `python3 -m pip --version` → global pip 22.0.2. **Next:** obtain approval for proposed isolated pip install and bounded CPU smoke in `docs/M1_INSTALL_APPROVAL.md`.
+1. **DONE user-reported**: `python3 scripts/audit_environment.py` returned Python 3.10.12, RTX 3070 8GB, driver 580.178.04; output captured in docs/UPSTREAM_LOCK.md. **ALSO DONE user-reported**: `nvidia-smi` → 5957 MiB free VRAM; `df -h .` → 418G disk free; `python3 -m pip --version` → global pip 22.0.2. **DONE in this M1 phase:** explicit approval granted, isolated installation and bounded CPU smoke executed successfully. See `docs/M1_EXECUTION_REPORT.md`.
 2. Confirm Python, torch CUDA runtime, SAPIEN/gymnasium, GPU free VRAM, target isolated venv path; confirm source SHA. No system changes. Record hardware evidence in `docs/UPSTREAM_LOCK.md` and `docs/PROGRESS.md`.
 3. Propose exact Python/Torch/SAPIEN wheel pins after inspecting local output and dependency compatibility. Installation requires explicit user permission. Disk/network costs TBD until solved; *do not imply zero installs*.
 
-## Work package M1-B — bounded CPU state smoke (researcher approved, not yet run)
+## Work package M1-B — bounded CPU state smoke (executed and passed)
 
 After dependencies are installed in a dedicated isolated environment, under the user's **2026-10-20 explicit approval of this concrete smoke test**, run from orchestration repo with ManiSkill v3.0.1 importable:
 
@@ -63,7 +63,7 @@ If the smoke is successful, **separately** request approval for an opt-in tiny a
 
 ## Three researcher understanding questions
 
-> **先读学习包：[docs/M1_LEARNING_PACK.md](M1_LEARNING_PACK.md)**（原理一页纸 + 代码导读 + 三道题的完整上下文）。
+> **M1 研究者理解验收已通过（2026-10-20，详见 [M1_LEARNING_CHECK.md](M1_LEARNING_CHECK.md)）；以下题目保留作复习。[docs/M1_LEARNING_PACK.md](M1_LEARNING_PACK.md)**（原理一页纸 + 代码导读 + 三道题的完整上下文）。
 > 下面的问题来自执行前的准备文档，学习包里已用本次实测数据重写并补充了提示来源。
 
 1. Why do `obs_mode=state_dict` and `obs_mode=state` expose the same underlying information in different formats? Which features are privileged simulation ground truth?
@@ -71,7 +71,7 @@ If the smoke is successful, **separately** request approval for an opt-in tiny a
 3. In PickCube, why is `is_grasped=True` insufficient for success? Distinguish `success`, `terminated`, `truncated` and how `ignore_terminations` alters rollouts.
 
 ### M1 status
-ENV_INSTALLED (`.venv-maniskill`, pip check clean) / CPU_SMOKE_PASSED (3 zero actions, exit 0) / INTERFACE_RUNTIME_VERIFIED (42-dim state, 8-dim action, 100/20 Hz, horizon 50) / GPU_UNVERIFIED_IN_AGENT_SHELL / M1_NOT_MARKED_PASSED / TRAINING_NOT_RUN
+ENV_INSTALLED (`.venv-maniskill`, pip check clean) / CPU_SMOKE_PASSED (3 zero actions, exit 0) / INTERFACE_RUNTIME_VERIFIED (42-dim state, 8-dim action, 100/20 Hz, horizon 50) / GPU_UNVERIFIED_IN_AGENT_SHELL / M1_PASSED / TRAINING_NOT_RUN
 
 Executed command (actual):
 
@@ -94,3 +94,7 @@ Two deviations were required and are documented in the report §6: `TMPDIR` redi
 ### Host utilization actually consumed
 - venv on disk: 6.21 GB (budget 12 GB); downloads well under the 5 GB cap (torch 780 MB + triton 210 MB + CUDA libs + ~100 MB ManiSkill + 51 MB SAPIEN).
 - Extra GPU/render assets: **0 bytes** — PickCube used packaged assets, no download prompt appeared.
+
+
+### Final learning gate result (2026-10-20)
+Researcher answered the three core questions and corrected the last numerical distinction: q_actual=0.43 rad was **position**, actual displacement q_actual−q_initial=0.03 rad, while q_target=0.45 rad, error=0.02 rad, next target=0.48 rad. See docs/M1_LEARNING_CHECK.md for the complete original responses and rubric. **M1 PASSED** for CPU introspection scope, **GPU NOT VERIFIED**, **PPO/SAC TRAINING NOT RUN**.

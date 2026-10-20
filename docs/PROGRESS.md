@@ -1,6 +1,6 @@
 # Work Log / 复现进度日志
 
-**Status 2026-10-20 (latest): isolated `.venv-maniskill` INSTALLED; `pip check` clean; PickCube CPU 3-step smoke PASSED at runtime; M1 interface audit RUNTIME_VERIFIED. M1/M0 NOT marked PASSED pending researcher understanding review. GPU invisible inside the agent shell (device nodes absent) so CUDA/throughput remain UNVERIFIED. NO training, NO GPU benchmark, NO cloud.**
+**Status 2026-10-20 (latest): M1 PASSED (isolated setup, CPU 3-step smoke, interface audit and researcher theory review). Broader M0 rubric remains separately tracked rather than inferred passed. GPU invisible inside the agent shell (device nodes absent), so CUDA/throughput remain UNVERIFIED. NO training, NO GPU benchmark, NO cloud.**
 
 ## Running log
 | Date | Gate | Repo base commit | Work | Evidence | Outcome | Next |
@@ -34,11 +34,13 @@
 
 | 2026-10-20 | M1-LEARNER-RECHECK-02 | 1bc0039c7eb6 | User computed first target 0.45 rad, tracking error 0.02 rad, second target 0.48 rad correctly, but wrote q_actual=0.43 rad as the actual displacement instead of 0.43−0.40=0.03 rad. Retained original response and explained distinction. | docs/M1_LEARNING_CHECK.md | 3/4 CORRECT / ONE CONCEPTUAL LABEL CORRECTION_PENDING / M1 NOT_PASSED | researcher restates actual displacement in one sentence; NO TRAINING |
 
+| 2026-10-20 | M1-LEARNER-FINAL-CORRECTION / GATE-CLOSE | d9b29391c62b | Researcher corrected actual joint displacement to 0.03 rad (versus measured position 0.43 rad). Prior target 0.45 rad, tracking error 0.02 rad, and next target 0.48 rad were correct. After retaining initial answers, learning check accepted: Q1 PASS_AFTER_CORRECTION, Q2 BASIC_PASS, Q3 PASS. With already verified isolated environment, three-step CPU smoke, and interface audit, **M1 PASSED for approved scope**. | docs/M1_LEARNING_CHECK.md; docs/M1_EXECUTION_REPORT.md | M1_PASSED / TRAINING_NOT_RUN / GPU_UNVERIFIED | start M2 source/learning prep; terminal-only read-only CUDA check; no training without approval |
+
 ## Explicit unknowns/blockers
 1. Isolated environment now exists and is verified (`pip check` clean, versions in `results/m1_environment_manifest.json`). Remaining unknown: **GPU usability**. The agent shell has no `/dev/nvidia*` nodes, so `nvidia-smi` fails (rc=9) and `torch.cuda.is_available()` is False **there**; the host driver is loaded (`/proc/driver/nvidia/version` = 580.178.04) and `lspci` shows the RTX 3070. Whether CUDA works in the researcher's own terminal is **NOT verified by this run**.
 2. SAC tuned example for PegInsertionSide not located in pinned README; do not label official benchmark without evidence.
 3. ~~Controller and reward/action dimensions not runtime checked~~ → **RESOLVED 2026-10-20**: action = 8-dim (arm 7 + gripper 1), bounds ±1, arm ±0.1 rad delta, gripper absolute [-0.01, 0.04], state = 42-dim, sim 100 Hz / control 20 Hz. See `docs/M1_EXECUTION_REPORT.md` §4.
-4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Isolated install + 3-zero-action CPU smoke are now **executed with evidence**. Still no permission for GPU benchmark or training. **M0/M1 remain NOT PASSED** because the understanding review is a separate acceptance item.
+4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Isolated install + 3-zero-action CPU smoke are now **executed with evidence**. Still no permission for GPU benchmark or training. **M1 PASSED** after the researcher's 2026-10-20 final correction. The wider M0 rubric has separate open items not inferred passed.
 5. Upstream issue #1469 warns about EE rotational-action sign for v3.0.1; do not modify upstream or claim this locally reproduced.
 6. `env.spec.max_episode_steps` is `None` under gymnasium 1.1.1; the real 50-step limit lives on ManiSkill's `TimeLimitWrapper._max_episode_steps`. Any future code reading the spec will silently lose truncation.
 
