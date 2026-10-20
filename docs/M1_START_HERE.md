@@ -1,9 +1,10 @@
-# M1 START HERE — PickCube task introspection (preparation only)
+# M1 START HERE — PickCube task introspection (executed; awaiting review)
 
-> State: **HOST_RESOURCES_AUDITED / INSTALL_AND_CPU_SMOKE_APPROVED / NOT_EXECUTED**. This file and the proposed script are not proof of an installed or working environment.
-> Date: 2026-10-19
+> State: **ENV_INSTALLED / CPU_SMOKE_EXECUTED_PASSED / INTERFACE_RUNTIME_VERIFIED / M1_NOT_MARKED_PASSED (researcher review pending)**. Date: 2026-10-20.
+> Full evidence, measured numbers and deviations: **[M1_EXECUTION_REPORT.md](M1_EXECUTION_REPORT.md)**.
 > Independent repo: dreamerToTOE/maniskill-arm-rl-reproduction
-> Upstream proposal: ManiSkill v3.0.1, immutable commit `a4a4f9272ad64b1564035874b605ceb687b63ed8`
+> Executed base commit: `4a4e5ff92fd4a1de13e9b0ed57a09d15d363e902`
+> Upstream proposal: ManiSkill v3.0.1, immutable commit `a4a4f9272ad64b1564035874b605ceb687b63ed8` (PyPI wheel 3.0.1 actually installed)
 
 ## Scope and gating
 
@@ -67,4 +68,26 @@ If the smoke is successful, **separately** request approval for an opt-in tiny a
 3. In PickCube, why is `is_grasped=True` insufficient for success? Distinguish `success`, `terminated`, `truncated` and how `ignore_terminations` alters rollouts.
 
 ### M1 status
-CODE_PATHS_SOURCE_VERIFIED / SCRIPT_PREPARED / HOST_VERSIONS_OBSERVED / FREE_VRAM_DISK_OBSERVED / ISOLATED_INSTALL_APPROVED_NOT_RUN / SMOKE_NOT_RUN / TRAINING_NOT_RUN
+ENV_INSTALLED (`.venv-maniskill`, pip check clean) / CPU_SMOKE_PASSED (3 zero actions, exit 0) / INTERFACE_RUNTIME_VERIFIED (42-dim state, 8-dim action, 100/20 Hz, horizon 50) / GPU_UNVERIFIED_IN_AGENT_SHELL / M1_NOT_MARKED_PASSED / TRAINING_NOT_RUN
+
+Executed command (actual):
+
+```bash
+TMPDIR=/home/ubuntu2004/.cache/ms-m1-tmp MS_SKIP_ASSET_DOWNLOAD_PROMPT=1 \
+./.venv-maniskill/bin/python scripts/m1_inspect_pickcube.py \
+  --obs-mode state_dict --action-mode zero --steps 3 --seed 0 \
+  --output results/m1_pickcube_state_dict_zero_seed0.json   # exit 0
+```
+
+Measured: reward `0.06530120 / 0.06530116 / 0.06530116`; `terminated=False`, `truncated=False`,
+`success=False`, `is_grasped=False`, `is_obj_placed=False`, `is_robot_static=True`.
+The reward was independently reproduced from `‖tcp−cube‖` via `(1−tanh(5d))/5`, confirming the source formula.
+
+Two deviations were required and are documented in the report §6: `TMPDIR` redirection
+(`/tmp` is a 10 MB tmpfs; pip errno 28) and a **real bug fix in this script** — `horizon` read
+`env.spec.max_episode_steps`, which is `None` under gymnasium 1.1.1, instead of the
+`TimeLimitWrapper` budget. The pre-fix artifact is preserved under `results/raw/PREFIX_horizon_null_*`.
+
+### Host utilization actually consumed
+- venv on disk: 6.21 GB (budget 12 GB); downloads well under the 5 GB cap (torch 780 MB + triton 210 MB + CUDA libs + ~100 MB ManiSkill + 51 MB SAPIEN).
+- Extra GPU/render assets: **0 bytes** — PickCube used packaged assets, no download prompt appeared.

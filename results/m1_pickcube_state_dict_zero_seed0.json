@@ -1,0 +1,440 @@
+{
+  "task": "PickCube-v1",
+  "robot": "panda",
+  "obs_mode": "state_dict",
+  "control_mode": "pd_joint_delta_pos",
+  "reward_mode": "normalized_dense",
+  "backend": "physx_cpu",
+  "seed": 0,
+  "action_mode": "zero",
+  "steps_budget": 3,
+  "horizon": 50,
+  "wrappers": [
+    "TimeLimitWrapper",
+    "OrderEnforcing",
+    "PickCubeEnv"
+  ],
+  "sim_freq_hz": 100,
+  "control_freq_hz": 20,
+  "action_space": {
+    "shape": [
+      8
+    ],
+    "low": [
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0,
+      -1.0
+    ],
+    "high": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  "initial_observation": {
+    "agent": {
+      "qpos": {
+        "shape": [
+          1,
+          9
+        ],
+        "dtype": "torch.float32"
+      },
+      "qvel": {
+        "shape": [
+          1,
+          9
+        ],
+        "dtype": "torch.float32"
+      }
+    },
+    "extra": {
+      "is_grasped": {
+        "shape": [
+          1
+        ],
+        "dtype": "torch.bool"
+      },
+      "tcp_pose": {
+        "shape": [
+          1,
+          7
+        ],
+        "dtype": "torch.float32"
+      },
+      "goal_pos": {
+        "shape": [
+          1,
+          3
+        ],
+        "dtype": "torch.float32"
+      },
+      "obj_pose": {
+        "shape": [
+          1,
+          7
+        ],
+        "dtype": "torch.float32"
+      },
+      "tcp_to_obj_pos": {
+        "shape": [
+          1,
+          3
+        ],
+        "dtype": "torch.float32"
+      },
+      "obj_to_goal_pos": {
+        "shape": [
+          1,
+          3
+        ],
+        "dtype": "torch.float32"
+      }
+    }
+  },
+  "reset_info_shape": {
+    "elapsed_steps": {
+      "shape": [
+        1
+      ],
+      "dtype": "torch.int32"
+    },
+    "success": {
+      "shape": [
+        1
+      ],
+      "dtype": "torch.bool"
+    },
+    "is_obj_placed": {
+      "shape": [
+        1
+      ],
+      "dtype": "torch.bool"
+    },
+    "is_robot_static": {
+      "shape": [
+        1
+      ],
+      "dtype": "torch.bool"
+    },
+    "is_grasped": {
+      "shape": [
+        1
+      ],
+      "dtype": "torch.bool"
+    },
+    "reconfigure": "bool"
+  },
+  "steps": [
+    {
+      "t": 0,
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reward": [
+        0.06530120223760605
+      ],
+      "terminated": [
+        false
+      ],
+      "truncated": [
+        false
+      ],
+      "info": {
+        "success": [
+          false
+        ],
+        "is_grasped": [
+          false
+        ],
+        "is_obj_placed": [
+          false
+        ],
+        "is_robot_static": [
+          true
+        ],
+        "elapsed_steps": [
+          1
+        ]
+      },
+      "obs_shape": {
+        "agent": {
+          "qpos": {
+            "shape": [
+              1,
+              9
+            ],
+            "dtype": "torch.float32"
+          },
+          "qvel": {
+            "shape": [
+              1,
+              9
+            ],
+            "dtype": "torch.float32"
+          }
+        },
+        "extra": {
+          "is_grasped": {
+            "shape": [
+              1
+            ],
+            "dtype": "torch.bool"
+          },
+          "tcp_pose": {
+            "shape": [
+              1,
+              7
+            ],
+            "dtype": "torch.float32"
+          },
+          "goal_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          },
+          "obj_pose": {
+            "shape": [
+              1,
+              7
+            ],
+            "dtype": "torch.float32"
+          },
+          "tcp_to_obj_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          },
+          "obj_to_goal_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          }
+        }
+      }
+    },
+    {
+      "t": 1,
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reward": [
+        0.06530116498470306
+      ],
+      "terminated": [
+        false
+      ],
+      "truncated": [
+        false
+      ],
+      "info": {
+        "success": [
+          false
+        ],
+        "is_grasped": [
+          false
+        ],
+        "is_obj_placed": [
+          false
+        ],
+        "is_robot_static": [
+          true
+        ],
+        "elapsed_steps": [
+          2
+        ]
+      },
+      "obs_shape": {
+        "agent": {
+          "qpos": {
+            "shape": [
+              1,
+              9
+            ],
+            "dtype": "torch.float32"
+          },
+          "qvel": {
+            "shape": [
+              1,
+              9
+            ],
+            "dtype": "torch.float32"
+          }
+        },
+        "extra": {
+          "is_grasped": {
+            "shape": [
+              1
+            ],
+            "dtype": "torch.bool"
+          },
+          "tcp_pose": {
+            "shape": [
+              1,
+              7
+            ],
+            "dtype": "torch.float32"
+          },
+          "goal_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          },
+          "obj_pose": {
+            "shape": [
+              1,
+              7
+            ],
+            "dtype": "torch.float32"
+          },
+          "tcp_to_obj_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          },
+          "obj_to_goal_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          }
+        }
+      }
+    },
+    {
+      "t": 2,
+      "action": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reward": [
+        0.06530116498470306
+      ],
+      "terminated": [
+        false
+      ],
+      "truncated": [
+        false
+      ],
+      "info": {
+        "success": [
+          false
+        ],
+        "is_grasped": [
+          false
+        ],
+        "is_obj_placed": [
+          false
+        ],
+        "is_robot_static": [
+          true
+        ],
+        "elapsed_steps": [
+          3
+        ]
+      },
+      "obs_shape": {
+        "agent": {
+          "qpos": {
+            "shape": [
+              1,
+              9
+            ],
+            "dtype": "torch.float32"
+          },
+          "qvel": {
+            "shape": [
+              1,
+              9
+            ],
+            "dtype": "torch.float32"
+          }
+        },
+        "extra": {
+          "is_grasped": {
+            "shape": [
+              1
+            ],
+            "dtype": "torch.bool"
+          },
+          "tcp_pose": {
+            "shape": [
+              1,
+              7
+            ],
+            "dtype": "torch.float32"
+          },
+          "goal_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          },
+          "obj_pose": {
+            "shape": [
+              1,
+              7
+            ],
+            "dtype": "torch.float32"
+          },
+          "tcp_to_obj_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          },
+          "obj_to_goal_pos": {
+            "shape": [
+              1,
+              3
+            ],
+            "dtype": "torch.float32"
+          }
+        }
+      }
+    }
+  ]
+}

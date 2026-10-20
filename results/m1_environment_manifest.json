@@ -1,0 +1,102 @@
+{
+  "generated_utc": "2026-10-20T02:55:16+00:00",
+  "host": {
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "kernel": "6.8.0-138-generic",
+    "cpu_count": 16,
+    "python_version": "3.10.12",
+    "python_executable": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python",
+    "is_venv": true,
+    "venv_prefix": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill"
+  },
+  "packages": {
+    "torch": "2.5.1+cu121",
+    "sapien": "3.0.0",
+    "mani-skill": "3.0.1",
+    "gymnasium": "1.1.1",
+    "numpy": "1.24.4",
+    "scipy": "1.15.3",
+    "opencv-python": "4.11.0.86",
+    "trimesh": "5.1.1",
+    "mplib": "0.1.1",
+    "toppra": "0.6.10",
+    "pytorch-kinematics": "0.7.6",
+    "h5py": "3.16.0",
+    "tyro": "1.0.16",
+    "huggingface-hub": "2.2.0"
+  },
+  "torch": {
+    "version": "2.5.1+cu121",
+    "cuda_runtime_compiled": "12.1",
+    "cudnn_version": 90100,
+    "cuda_is_available": false,
+    "cuda_device_count": 0
+  },
+  "pip_check": {
+    "cmd": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python -m pip check",
+    "returncode": 0,
+    "stdout": "No broken requirements found.",
+    "stderr": ""
+  },
+  "disk": {
+    "cmd": "df -B1 /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction",
+    "returncode": 0,
+    "stdout": "文件系统             1B的块         已用         可用 已用% 挂载点\n/dev/sdb3      776400773120 295765422080 441121128448   41% /",
+    "stderr": ""
+  },
+  "venv_size": {
+    "cmd": "du -sb /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill",
+    "returncode": 0,
+    "stdout": "6210349110\t/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill",
+    "stderr": ""
+  },
+  "nvidia_smi": {
+    "cmd": "nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv,noheader",
+    "returncode": 9,
+    "stdout": "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.",
+    "stderr": ""
+  },
+  "git": {
+    "project_head": "4a4e5ff92fd4a1de13e9b0ed57a09d15d363e902",
+    "project_status": "M scripts/m1_inspect_pickcube.py\n?? results/\n?? scripts/m1_env_manifest.py",
+    "upstream_pin": "a4a4f9272ad64b1564035874b605ceb687b63ed8",
+    "upstream_tag": "v3.0.1"
+  },
+  "env_vars_used": [
+    "MS_SKIP_ASSET_DOWNLOAD_PROMPT=1",
+    "TMPDIR=<large filesystem>"
+  ],
+  "note": "Installed ManiSkill comes from the PyPI wheel mani-skill==3.0.1; the upstream git pin is recorded as source reference, not as binary identity.",
+  "wheel_provenance": {
+    "mani-skill": {
+      "filename": "mani_skill-3.0.1-py3-none-any.whl",
+      "sha256": "685de2f03c300b1ede49881a1bf6306ad062082d39c8d3be8b8e85603f32e33a",
+      "size_bytes": 101729066,
+      "source": "PyPI JSON API metadata (digest of published artifact)"
+    },
+    "sapien": {
+      "filename": "sapien-3.0.0-cp310-cp310-manylinux_2_28_x86_64.whl",
+      "sha256": "c57837cc6998f42dad1355c2332b1d0e5b815acb438f4f38f250de8e2576cc90",
+      "size_bytes": 51298261,
+      "source": "PyPI JSON API metadata (digest of published artifact)"
+    },
+    "gymnasium": {
+      "filename": "gymnasium-1.1.1-py3-none-any.whl",
+      "sha256": "9c167ec0a2b388666e37f63b2849cd2552f7f5b71938574c637bb36487eb928a",
+      "size_bytes": 965410,
+      "source": "PyPI JSON API metadata (digest of published artifact)"
+    },
+    "numpy": {
+      "filename": "numpy-1.24.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "7ffe43c74893dbf38c2b0a1f5428760a1a9c98285553c89e12d70a96a7f3a4d6",
+      "size_bytes": 17282357,
+      "source": "PyPI JSON API metadata (digest of published artifact)"
+    },
+    "torch": {
+      "version": "2.5.1+cu121",
+      "source": "https://download.pytorch.org/whl/cu121",
+      "sha256": "not recorded (wheel not retained; --no-cache-dir)"
+    }
+  }
+}

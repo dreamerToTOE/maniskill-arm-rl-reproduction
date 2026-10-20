@@ -1,6 +1,6 @@
 # Work Log / 复现进度日志
 
-**Status 2026-10-20: M0 source/theory and learner-provided hardware/VRAM/disk/pip audit COMPLETE; limited isolated dependency installation and CPU smoke APPROVED / NOT_RUN; M1 CPU smoke NOT_RUN; NO training or local simulation.**
+**Status 2026-10-20 (latest): isolated `.venv-maniskill` INSTALLED; `pip check` clean; PickCube CPU 3-step smoke PASSED at runtime; M1 interface audit RUNTIME_VERIFIED. M1/M0 NOT marked PASSED pending researcher understanding review. GPU invisible inside the agent shell (device nodes absent) so CUDA/throughput remain UNVERIFIED. NO training, NO GPU benchmark, NO cloud.**
 
 ## Running log
 | Date | Gate | Repo base commit | Work | Evidence | Outcome | Next |
@@ -20,14 +20,19 @@
 
 | 2026-10-20 | M1/M2 PORTABILITY DECISION | d8cb6f75bbf82662525fae64ad6365b174e396bf | Researcher chose local-first development and small pilots, cloud GPU migration only if measured training throughput/VRAM later warrant it. Added portable experiment checklist, config/manifest/checkpoint/replay requirements and launch gates; no cloud account provisioned or training executed. | docs/CLOUD_MIGRATION_PLAYBOOK.md; docs/M1_TRAINING_EFFICIENCY_PLAN.md | CLOUD_RENTAL_DEFERRED / MIGRATION_DESIGN_READY | finish approved isolated M1 setup and CPU smoke |
 
+| 2026-10-20 | M1-INSTALL (EXECUTED) | 4a4e5ff92fd4a1de13e9b0ed57a09d15d363e902 | `git pull --ff-only` 046a11b→4a4e5ff (fast-forward, clean tree). Re-audited host: `/usr/bin/python3` 3.10.12, kernel 6.8.0-138, 418G free, `lspci` RTX 3070, `/proc/driver/nvidia/version` 580.178.04, but **no `/dev/nvidia*` nodes in the agent shell**. Created `.venv-maniskill` with /usr/bin/python3. First torch install failed with `OSError errno 28` at 10.5 MB because `/tmp` is a **10 MB tmpfs**; retried with `TMPDIR` on the root filesystem. Installed torch 2.5.1+cu121, mani_skill 3.0.1, sapien 3.0.0, gymnasium 1.1.1, numpy 1.24.4 — resolved on first attempt, no forced pins. | results/m1_environment_manifest.json; results/m1_requirements.lock.txt; docs/M1_EXECUTION_REPORT.md | INSTALL_OK / pip check clean / disk +6.21 GB (budget 12 GB) / torch CUDA runtime 12.1 / cuda_available False (no device nodes) | run the approved smoke |
+
+| 2026-10-20 | M1-CPU-SMOKE (EXECUTED) | 4a4e5ff92fd4a1de13e9b0ed57a09d15d363e902 | Ran `scripts/m1_inspect_pickcube.py` (PickCube-v1 / panda / physx_cpu / state_dict / pd_joint_delta_pos / normalized_dense / 1 env / seed 0 / zero actions / 3 steps). exit 0. Rewards 0.06530120, 0.06530116, 0.06530116; success/is_grasped/is_obj_placed False, is_robot_static True, terminated/truncated False. Verified reward formula numerically from `‖tcp−cube‖`=0.16342215. Probe: 42-dim state, 8-dim action (arm 7 + gripper 1), 100/20 Hz → 5 physics steps per control step, horizon 50, reset bit-identical for seed 0. Fixed a real script bug: `horizon` read `env.spec.max_episode_steps` (None under gymnasium 1.1.1) instead of the TimeLimitWrapper budget; pre-fix artifact preserved. | results/m1_pickcube_state_dict_zero_seed0.json; results/raw/*; docs/M1_EXECUTION_REPORT.md; docs/FAILURE_LOG.md | SMOKE_PASSED / INTERFACE_RUNTIME_VERIFIED / training NOT_RUN | researcher answers the 3 M1 questions; confirm GPU visibility in own terminal |
+
 ## Explicit unknowns/blockers
-1. Read-only user-supplied audit confirms Python 3.10.12, RTX 3070 total 8192 MiB/**5957 MiB free**, driver 580.178.04, **418G free disk**, system pip 22.0.2; other venv interpreters and PyTorch CUDA wheel remain unobserved. No local shell access.
+1. Isolated environment now exists and is verified (`pip check` clean, versions in `results/m1_environment_manifest.json`). Remaining unknown: **GPU usability**. The agent shell has no `/dev/nvidia*` nodes, so `nvidia-smi` fails (rc=9) and `torch.cuda.is_available()` is False **there**; the host driver is loaded (`/proc/driver/nvidia/version` = 580.178.04) and `lspci` shows the RTX 3070. Whether CUDA works in the researcher's own terminal is **NOT verified by this run**.
 2. SAC tuned example for PegInsertionSide not located in pinned README; do not label official benchmark without evidence.
-3. Controller and reward/action dimensions not runtime checked; default scripts compare different control modes.
-4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Host audit completed and user approved *isolated installation plus three-zero-action CPU smoke* only. No GPU training or microbenchmark permission and no actual shell execution evidence. M0 not marked PASSED.
+3. ~~Controller and reward/action dimensions not runtime checked~~ → **RESOLVED 2026-10-20**: action = 8-dim (arm 7 + gripper 1), bounds ±1, arm ±0.1 rad delta, gripper absolute [-0.01, 0.04], state = 42-dim, sim 100 Hz / control 20 Hz. See `docs/M1_EXECUTION_REPORT.md` §4.
+4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Isolated install + 3-zero-action CPU smoke are now **executed with evidence**. Still no permission for GPU benchmark or training. **M0/M1 remain NOT PASSED** because the understanding review is a separate acceptance item.
 5. Upstream issue #1469 warns about EE rotational-action sign for v3.0.1; do not modify upstream or claim this locally reproduced.
+6. `env.spec.max_episode_steps` is `None` under gymnasium 1.1.1; the real 50-step limit lives on ManiSkill's `TimeLimitWrapper._max_episode_steps`. Any future code reading the spec will silently lose truncation.
 
 ## Hard boundaries
 - Dual-FR3 main project frozen pending 5 coordinated-arm paper reproductions and explicit resume approval.
-- No local clone, download, pip install, RTX benchmarking, ROS2/Isaac Sim/CUDA/driver changes, RL training, 3-seed runs or model-weight assertions in M0 audit.
+- No RTX benchmarking, ROS2/Isaac Sim/CUDA/driver changes, RL training, 3-seed runs or model-weight assertions. Only the approved isolated install and 3-step CPU smoke were executed.
 - Experiment matrix EXP-000 remains NOT_STARTED; no fabricated metrics or progress percentages.

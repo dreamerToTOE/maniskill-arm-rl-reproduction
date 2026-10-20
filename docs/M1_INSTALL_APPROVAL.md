@@ -1,4 +1,6 @@
-# M1 isolated installation & bounded smoke — USER APPROVED (NOT EXECUTED)
+# M1 isolated installation & bounded smoke — USER APPROVED / **EXECUTED 2026-10-20**
+
+> Executed as approved. Results: `docs/M1_EXECUTION_REPORT.md`. Two deviations, both documented and both in the failure log: `TMPDIR` redirection (`/tmp` is a 10 MB tmpfs → pip errno 28) and a one-line-class fix to the smoke script's `horizon` readout. No training, no GPU benchmark, no cloud, no system changes.
 
 Date 2026-10-20. User-provided host audit **RTX 3070 8192 MiB total / 5957 MiB free**, driver **580.178.04**, 418G disk free on root filesystem, Python **3.10.12**, system **pip 22.0.2**; `torch`/`sapien`/`gymnasium`/`mani_skill` not found in this Python interpreter.
 

@@ -33,6 +33,36 @@ def to_small_json(value: Any) -> Any:
     return {"shape": list(arr.shape), "min": float(arr.min()), "max": float(arr.max())}
 
 
+def wrapper_chain(env: Any) -> list[str]:
+    chain, e = [], env
+    while True:
+        chain.append(type(e).__name__)
+        if not hasattr(e, "env"):
+            break
+        e = e.env
+    return chain
+
+
+def episode_horizon(env: Any) -> Any:
+    """Resolve the real time limit.
+
+    Under gymnasium 1.1.1 ManiSkill registers its own batched
+    ``TimeLimitWrapper`` whose budget is *not* mirrored into
+    ``EnvSpec.max_episode_steps`` (that stays None). Reading the spec alone
+    therefore reports a false "unbounded episode"; read the wrapper itself.
+    """
+    e = env
+    while True:
+        limit = getattr(e, "_max_episode_steps", None)
+        if limit is not None:
+            return int(limit)
+        if not hasattr(e, "env"):
+            break
+        e = e.env
+    spec = getattr(env, "spec", None)
+    return getattr(spec, "max_episode_steps", None)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--obs-mode", choices=["state", "state_dict"], default="state_dict")
@@ -77,7 +107,8 @@ def main() -> None:
             "seed": args.seed,
             "action_mode": args.action_mode,
             "steps_budget": args.steps,
-            "horizon": env.spec.max_episode_steps if env.spec else None,
+            "horizon": episode_horizon(env),
+            "wrappers": wrapper_chain(env),
             "sim_freq_hz": int(base.sim_config.sim_freq),
             "control_freq_hz": int(base.sim_config.control_freq),
             "action_space": {
