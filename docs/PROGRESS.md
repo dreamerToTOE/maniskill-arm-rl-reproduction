@@ -1,6 +1,6 @@
 # Work Log / 复现进度日志
 
-**Status 2026-10-20 (latest): M1 PASSED (isolated setup, CPU 3-step smoke, interface audit and researcher theory review). Broader M0 rubric remains separately tracked rather than inferred passed. GPU invisible inside the agent shell (device nodes absent), so CUDA/throughput remain UNVERIFIED. NO training, NO GPU benchmark, NO cloud.**
+**Status 2026-10-20 (latest): M1 PASSED (setup, 3-step CPU smoke, interface and researcher review); M2 SOURCE & LEARNING PACK PREPARED / TRAINING NOT_RUN. Broader M0 rubric separately tracked. GPU unavailable in the agent shell (missing device nodes); researcher's normal terminal CUDA status/throughput remain UNVERIFIED. NO training, NO GPU benchmark, NO cloud.**
 
 ## Running log
 | Date | Gate | Repo base commit | Work | Evidence | Outcome | Next |
@@ -35,6 +35,8 @@
 | 2026-10-20 | M1-LEARNER-RECHECK-02 | 1bc0039c7eb6 | User computed first target 0.45 rad, tracking error 0.02 rad, second target 0.48 rad correctly, but wrote q_actual=0.43 rad as the actual displacement instead of 0.43−0.40=0.03 rad. Retained original response and explained distinction. | docs/M1_LEARNING_CHECK.md | 3/4 CORRECT / ONE CONCEPTUAL LABEL CORRECTION_PENDING / M1 NOT_PASSED | researcher restates actual displacement in one sentence; NO TRAINING |
 
 | 2026-10-20 | M1-LEARNER-FINAL-CORRECTION / GATE-CLOSE | d9b29391c62b | Researcher corrected actual joint displacement to 0.03 rad (versus measured position 0.43 rad). Prior target 0.45 rad, tracking error 0.02 rad, and next target 0.48 rad were correct. After retaining initial answers, learning check accepted: Q1 PASS_AFTER_CORRECTION, Q2 BASIC_PASS, Q3 PASS. With already verified isolated environment, three-step CPU smoke, and interface audit, **M1 PASSED for approved scope**. | docs/M1_LEARNING_CHECK.md; docs/M1_EXECUTION_REPORT.md | M1_PASSED / TRAINING_NOT_RUN / GPU_UNVERIFIED | start M2 source/learning prep; terminal-only read-only CUDA check; no training without approval |
+
+| 2026-10-20 | M2-SOURCE-LEARNING-PREP | d08e5870368c | With M1 accepted, mapped pinned ManiSkill v3.0.1 PPO ppo.py and ppo_fast.py + PickCube official baselines.sh, produced source-backed one-page theory/code-reading pack before posing comprehension questions. Explicitly separated 4096×4 fast reference from readable 512×50 default; recorded terminal CUDA visibility blocker and need for a separate GPU training approval. No training or performance run. | docs/M2_START_HERE.md; docs/M2_LEARNING_PACK.md | M2_SOURCE_READY / M2_NOT_RUN / CUDA_UNVERIFIED | researcher studies PPO source; read-only terminal CUDA check; propose bounded M2 pilot for approval |
 
 ## Explicit unknowns/blockers
 1. Isolated environment now exists and is verified (`pip check` clean, versions in `results/m1_environment_manifest.json`). Remaining unknown: **GPU usability**. The agent shell has no `/dev/nvidia*` nodes, so `nvidia-smi` fails (rc=9) and `torch.cuda.is_available()` is False **there**; the host driver is loaded (`/proc/driver/nvidia/version` = 580.178.04) and `lspci` shows the RTX 3070. Whether CUDA works in the researcher's own terminal is **NOT verified by this run**.
