@@ -32,6 +32,8 @@
 
 | 2026-10-20 | M1-LEARNER-ASSESSMENT-01 | 87a0fdf9be9a | Evaluated researcher’s three independently written M1 answers: normalized 0.5 -> 0.05 rad target correct, but falsely equated target and realized displacement; sim/real obj_pose basically correct; reward/success separation correct. Prepared one numeric recheck of PD commanded target vs actual displacement. | docs/M1_LEARNING_CHECK.md | Q1 PARTIAL/FAILED, Q2 BASIC PASS, Q3 PASS; M1 NOT_PASSED | researcher answers 1 focused numerical recheck, then decide M1 gate; NO TRAINING |
 
+| 2026-10-20 | M1-LEARNER-RECHECK-02 | 1bc0039c7eb6 | User computed first target 0.45 rad, tracking error 0.02 rad, second target 0.48 rad correctly, but wrote q_actual=0.43 rad as the actual displacement instead of 0.43−0.40=0.03 rad. Retained original response and explained distinction. | docs/M1_LEARNING_CHECK.md | 3/4 CORRECT / ONE CONCEPTUAL LABEL CORRECTION_PENDING / M1 NOT_PASSED | researcher restates actual displacement in one sentence; NO TRAINING |
+
 ## Explicit unknowns/blockers
 1. Isolated environment now exists and is verified (`pip check` clean, versions in `results/m1_environment_manifest.json`). Remaining unknown: **GPU usability**. The agent shell has no `/dev/nvidia*` nodes, so `nvidia-smi` fails (rc=9) and `torch.cuda.is_available()` is False **there**; the host driver is loaded (`/proc/driver/nvidia/version` = 580.178.04) and `lspci` shows the RTX 3070. Whether CUDA works in the researcher's own terminal is **NOT verified by this run**.
 2. SAC tuned example for PegInsertionSide not located in pinned README; do not label official benchmark without evidence.

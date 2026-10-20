@@ -30,3 +30,16 @@ Researcher must independently compute; don't mark passed solely for reading the 
 `M1_TEACHING_MATERIAL=DELIVERED`; `M1_CPU_SMOKE=PASSED`; `M1_THEORY=RECHECK_PENDING`; `M1_OVERALL=NOT_PASSED`; `GPU_LOCAL_USABILITY=NOT_VERIFIED`; `TRAINING=NOT_RUN`.
 
 Source: `mani_skill/agents/robots/panda/panda.py::_controller_configs` and `mani_skill/agents/controllers/pd_joint_pos.py::set_action`, official v3.0.1 source pin `a4a4f9272ad64b1564035874b605ceb687b63ed8`; `docs/M1_EXECUTION_REPORT.md` for local smoke data.
+
+
+## Numerical recheck attempt — researcher response 2026-10-20
+
+**Original verbatim:** `控制器算出来的目标关节位置：0.45，关节实际位移是0.43rad，目标跟踪误差是0.02rad，新的为0.48`
+
+**Judgment: 3 of 4 numerical quantities right, but target/position/displacement distinction still needs a single correction.**
+- First commanded target **0.45 rad: correct**.
+- `0.43 rad` is the **measured position after the first step**, **not** the displacement. Correct displacement is `0.43-0.40 = +0.03 rad`. This repeats the distinction being tested; cannot label full independent mastery yet.
+- Tracking error **0.02 rad: correct** (`0.45-0.43`).
+- Second commanded target **0.48 rad: correct** (`0.43+0.05`) with `use_target=False`.
+
+**Next:** Researcher only needs to independently restate the actual displacement `q_actual-q_initial`, its value and why `0.43` is not a displacement. No more broad questions or extra simulation needed. `M1_THEORY=PARTIAL_PASS_RECHECK_ONE_VALUE`; `M1_OVERALL=NOT_YET_PASSED`. Do not launch training or cloud GPU work.
