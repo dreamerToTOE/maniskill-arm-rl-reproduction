@@ -7,7 +7,7 @@
 
 ## Scope and gating
 
-M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Learner provided a real read-only host audit on 2026-10-20: CPython 3.10.12, RTX 3070 with 8192 MiB total, NVIDIA driver 580.178.04, NumPy 1.24.4; no torch/sapien/gymnasium/mani_skill distributions in that interpreter. Formal M0 gate still open because free VRAM/disk, dependency integration, and approved CPU smoke evidence are missing. Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
+M0 source audit and the learner's central PPO/SAC conceptual review are sufficiently advanced to **prepare** M1. Learner provided a real read-only host audit on 2026-10-20: CPython 3.10.12, RTX 3070 with 8192 MiB total, NVIDIA driver 580.178.04, NumPy 1.24.4; no torch/sapien/gymnasium/mani_skill distributions in that interpreter. Formal M0 gate still open because isolated dependency integration and approved CPU smoke evidence are missing (free VRAM 5957 MiB and disk free 418G now observed). Do not falsely mark M0 PASSED. Prepare M1 without training or changing the main dual-FR3 project.
 
 Researcher owns acceptance/experimental design; Codex owns environment inspection, isolated setup on user-approved host, implementation and evidence. Do NOT run training, install system packages, upgrade CUDA/drivers/ROS2/Isaac Sim, or modify other repos.
 
@@ -28,7 +28,7 @@ Source tree: https://github.com/mani-skill/ManiSkill/tree/a4a4f9272ad64b15640358
 
 ## Work package M1-A — read-only host audit and review (no install)
 
-1. **DONE user-reported**: `python3 scripts/audit_environment.py` returned Python 3.10.12, RTX 3070 8GB, driver 580.178.04; output captured in docs/UPSTREAM_LOCK.md. **NEXT read-only**: `nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv`; `df -h .`; `python3 -m pip --version`.
+1. **DONE user-reported**: `python3 scripts/audit_environment.py` returned Python 3.10.12, RTX 3070 8GB, driver 580.178.04; output captured in docs/UPSTREAM_LOCK.md. **ALSO DONE user-reported**: `nvidia-smi` → 5957 MiB free VRAM; `df -h .` → 418G disk free; `python3 -m pip --version` → global pip 22.0.2. **Next:** obtain approval for proposed isolated pip install and bounded CPU smoke in `docs/M1_INSTALL_APPROVAL.md`.
 2. Confirm Python, torch CUDA runtime, SAPIEN/gymnasium, GPU free VRAM, target isolated venv path; confirm source SHA. No system changes. Record hardware evidence in `docs/UPSTREAM_LOCK.md` and `docs/PROGRESS.md`.
 3. Propose exact Python/Torch/SAPIEN wheel pins after inspecting local output and dependency compatibility. Installation requires explicit user permission. Disk/network costs TBD until solved; *do not imply zero installs*.
 
@@ -48,7 +48,7 @@ MS_SKIP_ASSET_DOWNLOAD_PROMPT=1 python scripts/m1_inspect_pickcube.py \
   --output results/m1_pickcube_state_zero_seed0.json
 ```
 
-Expected command upper limit: **three environment steps per command, one CPU environment, no renders and no gradient update**, normally <5 minutes after dependencies/assets are installed; runtime unverified on this machine. CPU smoke avoids planned GPU parallel training allocation; runtime may still initialize graphics libraries depending on local installation. Approximate *training* VRAM requirement: none; runtime GPU allocation to be verified rather than invented. Disk for environment/wheels/assets **unknown pending dependency review**. Stop if download prompts, driver/Vulkan failure, missing assets, unbounded run, or unexpected resources.
+Expected command upper limit: **three environment steps per command, one CPU environment, no renders and no gradient update**, normally <5 minutes after dependencies/assets are installed; runtime unverified on this machine. CPU smoke avoids planned GPU parallel training allocation; runtime may still initialize graphics libraries depending on local installation. Approximate *training* VRAM requirement: none; runtime GPU allocation to be verified rather than invented. Disk for environment/wheels/assets **not measured yet**; filesystem has 418G free, with a separately proposed installation cap in `docs/M1_INSTALL_APPROVAL.md`. Stop if download prompts, driver/Vulkan failure, missing assets, unbounded run, or unexpected resources.
 
 If the smoke is successful, **separately** request approval for an opt-in tiny arm action (normalized 0.1 on arm joint 1) to inspect controller scaling. It is NOT a grasping demo and cannot establish baseline success.
 
@@ -67,4 +67,4 @@ If the smoke is successful, **separately** request approval for an opt-in tiny a
 3. In PickCube, why is `is_grasped=True` insufficient for success? Distinguish `success`, `terminated`, `truncated` and how `ignore_terminations` alters rollouts.
 
 ### M1 status
-CODE_PATHS_SOURCE_VERIFIED / SCRIPT_PREPARED / HOST_VERSIONS_OBSERVED / FREE_VRAM_DISK_UNKNOWN / INSTALL_NOT_APPROVED / SMOKE_NOT_RUN / TRAINING_NOT_RUN
+CODE_PATHS_SOURCE_VERIFIED / SCRIPT_PREPARED / HOST_VERSIONS_OBSERVED / FREE_VRAM_DISK_OBSERVED / INSTALL_NOT_APPROVED / SMOKE_NOT_RUN / TRAINING_NOT_RUN

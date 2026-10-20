@@ -28,3 +28,6 @@ checkpoints/
 assets/raw/
 data/raw/
 results/raw/
+
+# Dedicated ManiSkill v3 isolated Python environment
+.venv-maniskill/

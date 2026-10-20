@@ -1,6 +1,6 @@
 # Work Log / 复现进度日志
 
-**Status 2026-10-20: M0 source/theory and learner-provided host hardware audit recorded; isolated dependencies NOT installed; M1 CPU smoke NOT_RUN; NO training or local simulation.**
+**Status 2026-10-20: M0 source/theory and learner-provided hardware/VRAM/disk/pip audit COMPLETE; dependency installation NOT APPROVED; M1 CPU smoke NOT_RUN; NO training or local simulation.**
 
 ## Running log
 | Date | Gate | Repo base commit | Work | Evidence | Outcome | Next |
@@ -14,11 +14,13 @@
 
 | 2026-10-20 | M0-HOST-AUDIT / M1-PREFLIGHT | 046a11bd14bd47240c5f4826ec6951580850a132 | Learner executed read-only audit_environment.py and provided output: Python 3.10.12, kernel 6.8/glibc 2.35, RTX3070 total 8192 MiB, driver 580.178.04, NumPy 1.24.4, no torch/gymnasium/sapien/mani_skill in active interpreter. Source-verified candidate distro wheels; requested free VRAM/disk and installation approval before isolated setup. | Learner-provided stdout; docs/UPSTREAM_LOCK.md | HOST_VERSION_AUDITED / INTEGRATION_NOT_RUN / INSTALL_NOT_APPROVED | audit free VRAM/disk; obtain bounded venv + CPU smoke approval; NO TRAINING |
 
+| 2026-10-20 | M0-HOST-PREFLIGHT / M1-INSTALL-PROPOSAL | c6149438a428271a21f49539728e8e001c761ddc | Learner ran nvidia-smi (RTX 3070 total 8192 MiB, free 5957 MiB, driver 580.178.04), df -h (418G available), system pip (22.0.2). Verified PyPI published cp310 SAPIEN 3.0.0 wheel and Torch 2.5.1 cu121 option; authored bounded installation approval plan. | docs/UPSTREAM_LOCK.md; docs/M1_INSTALL_APPROVAL.md; learner terminal output | RESOURCE_PREFLIGHT_COMPLETE / USER_APPROVAL_PENDING / INSTALL_NOT_RUN | obtain explicit user permission for isolated install + CPU 3-step smoke; do not train |
+
 ## Explicit unknowns/blockers
-1. Read-only user-supplied audit confirms Python 3.10.12, RTX 3070 total 8192 MiB, driver 580.178.04; **free VRAM, disk, other venv interpreters, and PyTorch CUDA wheel remain unobserved**. We have no shell access.
+1. Read-only user-supplied audit confirms Python 3.10.12, RTX 3070 total 8192 MiB/**5957 MiB free**, driver 580.178.04, **418G free disk**, system pip 22.0.2; other venv interpreters and PyTorch CUDA wheel remain unobserved. No local shell access.
 2. SAC tuned example for PegInsertionSide not located in pinned README; do not label official benchmark without evidence.
 3. Controller and reward/action dimensions not runtime checked; default scripts compare different control modes.
-4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Host audit and specific bounded smoke permission pending. M0 not marked PASSED.
+4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Host audit completed and specific bounded smoke permission pending. M0 not marked PASSED.
 5. Upstream issue #1469 warns about EE rotational-action sign for v3.0.1; do not modify upstream or claim this locally reproduced.
 
 ## Hard boundaries
