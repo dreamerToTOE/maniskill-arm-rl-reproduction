@@ -49,6 +49,12 @@ Do M1 approved isolated wheel installation + **one 3-zero-action CPU smoke** fir
 3. For SAC, separately profile 32 parallel envs, UTD settings and GPU/CPU replay storage before making cross-algorithm cost projections. Do not add this to a PPO pilot without permission.
 4. After measurement, calculate `projected hours(seed/task) = reference steps / measured steady-state end-to-end SPS / 3600` with uncertainty and quote cloud provider hourly price. Compare local electricity/opportunity cost and data transfer to 24GB cloud GPU. Cloud rental is not a prerequisite for M1, source review, CPU smoke, or initial modest state-based pilots.
 
+## Researcher decision — local first, portable by design (2026-10-20)
+
+The researcher chooses to **continue local development, debugging, and suitably approved small pilots now**, and to migrate **the reproducible experiment package** to rented cloud GPU hardware only if actual training performance/memory is unsatisfactory. **No cloud rental is approved yet.** Avoid preparing a bulky VM image or copying system drivers. Use source-controlled configurations and a clean environment install on the remote GPU.
+
+See `docs/CLOUD_MIGRATION_PLAYBOOK.md` for the actual handoff checklist. Capture dependency hashes and consistent output directories during M1/M2; don't defer all preparation until migration day. This is a portability/design decision, NOT blanket authorization for PPO/SAC training or GPU benchmarks.
+
 ## Rent-vs-local decision thresholds (practical heuristics, not proven constraints)
 
 - **Start local**: M1, M2 smoke/short state-based rollout, 1 controlled baseline pilot. RTX 3070 8GiB can be viable for small-scale state-based tasks if memory confirmed; no need to rent yet.
