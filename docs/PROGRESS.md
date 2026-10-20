@@ -1,6 +1,6 @@
 # Work Log / 复现进度日志
 
-**Status 2026-10-20: M0 source/theory and learner-provided hardware/VRAM/disk/pip audit COMPLETE; dependency installation NOT APPROVED; M1 CPU smoke NOT_RUN; NO training or local simulation.**
+**Status 2026-10-20: M0 source/theory and learner-provided hardware/VRAM/disk/pip audit COMPLETE; limited isolated dependency installation and CPU smoke APPROVED / NOT_RUN; M1 CPU smoke NOT_RUN; NO training or local simulation.**
 
 ## Running log
 | Date | Gate | Repo base commit | Work | Evidence | Outcome | Next |
@@ -16,11 +16,13 @@
 
 | 2026-10-20 | M0-HOST-PREFLIGHT / M1-INSTALL-PROPOSAL | c6149438a428271a21f49539728e8e001c761ddc | Learner ran nvidia-smi (RTX 3070 total 8192 MiB, free 5957 MiB, driver 580.178.04), df -h (418G available), system pip (22.0.2). Verified PyPI published cp310 SAPIEN 3.0.0 wheel and Torch 2.5.1 cu121 option; authored bounded installation approval plan. | docs/UPSTREAM_LOCK.md; docs/M1_INSTALL_APPROVAL.md; learner terminal output | RESOURCE_PREFLIGHT_COMPLETE / USER_APPROVAL_PENDING / INSTALL_NOT_RUN | obtain explicit user permission for isolated install + CPU 3-step smoke; do not train |
 
+| 2026-10-20 | M1-INSTALL-GATE / TRAINING-COST-REVIEW | 41775caebf100cd1ce5199b882f034c3e37acb8b | User explicitly approved previously proposed isolated Python installation and one 3-step CPU PickCube smoke. Audited pinned v3.0.1 PPO/SAC official workload: PPO state PickCube and PushCube 4096 envs/50M steps/seed each; PegInsertionSide 2048 envs/75M steps/seed; SAC readme PickCube/PushCube 32 envs/500k steps. RTX 3070 8GiB (5957 MiB free) supports sensible first local test, but local training throughput/unrestricted 4096 env VRAM remain unmeasured. Documented no-rent-now, benchmark-before-rent criteria. | docs/M1_INSTALL_APPROVAL.md; docs/M1_TRAINING_EFFICIENCY_PLAN.md | INSTALL_AND_CPU_SMOKE_APPROVED_NOT_RUN / TRAINING_NOT_APPROVED | local Codex install+bounded smoke; separately approve GPU throughput or RL pilot later |
+
 ## Explicit unknowns/blockers
 1. Read-only user-supplied audit confirms Python 3.10.12, RTX 3070 total 8192 MiB/**5957 MiB free**, driver 580.178.04, **418G free disk**, system pip 22.0.2; other venv interpreters and PyTorch CUDA wheel remain unobserved. No local shell access.
 2. SAC tuned example for PegInsertionSide not located in pinned README; do not label official benchmark without evidence.
 3. Controller and reward/action dimensions not runtime checked; default scripts compare different control modes.
-4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Host audit completed and specific bounded smoke permission pending. M0 not marked PASSED.
+4. Researcher follow-up understanding improved: PPO V/GAE vs SAC twin-Q/entropy largely correct; still needs source-backed checks for rsample/controller semantics. Host audit completed and user approved *isolated installation plus three-zero-action CPU smoke* only. No GPU training or microbenchmark permission and no actual shell execution evidence. M0 not marked PASSED.
 5. Upstream issue #1469 warns about EE rotational-action sign for v3.0.1; do not modify upstream or claim this locally reproduced.
 
 ## Hard boundaries

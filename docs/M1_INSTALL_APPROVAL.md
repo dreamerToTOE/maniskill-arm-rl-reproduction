@@ -1,8 +1,8 @@
-# M1 isolated installation & bounded smoke — APPROVAL REQUEST (NOT EXECUTED)
+# M1 isolated installation & bounded smoke — USER APPROVED (NOT EXECUTED)
 
 Date 2026-10-20. User-provided host audit **RTX 3070 8192 MiB total / 5957 MiB free**, driver **580.178.04**, 418G disk free on root filesystem, Python **3.10.12**, system **pip 22.0.2**; `torch`/`sapien`/`gymnasium`/`mani_skill` not found in this Python interpreter.
 
-**Current approval: PENDING**. Documentation and preparing a task script do not authorize installing or simulating on the student's local host.
+**Current approval: APPROVED BY RESEARCHER on 2026-10-20** (conversation: '可以，没问题'). Scope is strictly the proposed isolated Python wheel installation and ONE bounded CPU 3-zero-action PickCube smoke described below. **Not yet executed.** This approval does NOT extend to GPU parallel simulation, throughput benchmarking with training steps, official baseline training, long tasks, new GPU rental, other repositories, or modifying system dependencies. Local Codex may proceed only with this approved scope; ChatGPT/GitHub cannot execute shell operations on the learner host.
 
 ## Scope and candidate versions (review prior to execution)
 
@@ -17,7 +17,7 @@ Official reference: https://pytorch.org/get-started/previous-versions/ ; https:/
 
 Published upstream individual wheel sizes: ManiSkill **101.7 MB**, SAPIEN **51.3 MB**; total download and installed footprint will be larger due to Torch/CUDA and transitive deps. **Proposed hard budget:** stop if downloads projected > 5 GB or disk growth > 12 GB; request separate approval to exceed. GPU training allocation 0; CPU smoke does not imply no GPU/render initialization allocation (measure if unexpectedly happens).
 
-## Proposed commands — ONLY AFTER EXPLICIT APPROVAL
+## Approved proposed commands — execute on learner host via local Codex within scope
 
 ```bash
 # In maniskill-arm-rl-reproduction (after confirming git status and path)
@@ -54,3 +54,8 @@ If venv creation cannot bootstrap pip, STOP; do not run `sudo apt install python
 ## GitHub/CodeX English handoff
 
 > Before executing, check that the researcher has explicitly approved **isolated Python wheel installation and one bounded CPU PickCube smoke test**. If approval is absent, **do not execute**. Read AGENTS.md, docs/HUMAN_CODEX_WORKFLOW.md, docs/M1_START_HERE.md, and this document. Review current host facts, repo state, and PyPI/Torch release metadata. Under approval, work exclusively in a new gitignored local venv, never system environments or FR3 repos. Use the pinned ManiSkill source as a reference and report the installed wheel versions separately. Limit smoke to one CPU `PickCube-v1` environment and three zero actions; never train an agent. Record actual stdout, dependency manifest, disk usage, and outcomes, or precise reasons for blocking.
+
+
+## Separate training efficiency decision (NOT approved to execute benchmark/training)
+
+See `docs/M1_TRAINING_EFFICIENCY_PLAN.md`. Local GPU throughput remains unmeasured. After passing CPU smoke, propose (but do not auto-execute) a **bounded GPU forward/simulator throughput microbenchmark** with a range of environment counts and a separate approval for actual PPO/SAC training pilots. Do not mistake the CPU three-step smoke or published 4090 simulation FPS for measured 3070 training performance. No cloud rental yet.

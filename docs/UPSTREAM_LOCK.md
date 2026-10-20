@@ -31,7 +31,7 @@ From `python3 scripts/audit_environment.py`, supplied by the learner. This is **
 - CPU-only state-smoke can proceed after isolated dependency installation and the learner's approval. Available disk/VRAM do not prove dependencies are installed or compatible. No host commands were executed by ChatGPT itself; all outputs are user-provided.
 - `git status --short`, `python3 -m venv --help`, and exact virtual environment availability remain unchecked; these are noninvasive checks for the approved local Codex task.
 
-**Install authorization gate:** see `docs/M1_INSTALL_APPROVAL.md` for the concrete, **not yet approved** isolated installation and CPU 3-step smoke plan. Do not execute anything listed there until explicit user approval; no CUDA/driver/ROS2/IsaacSim upgrade. PyPI ManiSkill 3.0.1 wheel 101.7 MB and SAPIEN 3.0.0 CPython3.10 wheel 51.3 MB; CUDA Torch and NVIDIA libraries add substantially more. Current disk free 418GB; staged installation cap proposed and subject to approval.
+**Install authorization gate:** **approved by researcher on 2026-10-20** for the precise isolated installation and CPU 3-step smoke documented at `docs/M1_INSTALL_APPROVAL.md`; user must hand instructions to their local Codex (no ChatGPT shell access). This does NOT approve GPU throughput benchmark or actual model training; no CUDA/driver/ROS2/IsaacSim upgrade. PyPI ManiSkill 3.0.1 wheel 101.7 MB and SAPIEN 3.0.0 CPython3.10 wheel 51.3 MB; CUDA Torch and NVIDIA libraries add substantially more. Current disk free 418GB; staged installation cap proposed and subject to approval.
 
 ## Noninvasive audit requests for local agent (do NOT auto-run install)
 - nvidia-smi --query-gpu=name,memory.total,memory.free,driver_version --format=csv
