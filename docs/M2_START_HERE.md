@@ -1,6 +1,6 @@
 # M2 START HERE — PickCube official PPO baseline (study first; no training)
 
-> **2026-10-20, state: SOURCE-VERIFIED / LEARNING-MATERIAL-READY / GPU-CUDA-UNVERIFIED / TRAINING-NOT-RUN.**
+> **2026-10-20, state: SOURCE-VERIFIED / LEARNING-MATERIAL-READY / TORCH-CUDA-TRUE-IN-RESEARCHER-TERMINAL / PHYSX-CUDA-UNVERIFIED / TRAINING-NOT-RUN.**
 >
 > Prerequisite: M1 PASSED at commit `d08e5870368c12644ff385e17f78068ad4bbb774`. Researcher approved **M1 isolated installation + 3-zero-action CPU smoke only**. This is not approval for M2 GPU simulation benchmarks or PPO training.
 >
@@ -10,7 +10,7 @@
 
 Reproduce the **official state-based PickCube PPO baseline** in an auditable way, separating three stages:
 1. **M2-READ**: source-map the official algorithm and task, deliver *theory one-pager + code guide* **before** asking comprehension questions; prepare a training comparison table and a concrete run budget. This phase is approved as document/source analysis; no training.
-2. **M2-HOST-READONLY**: verify CUDA accessibility **in the researcher's own normal terminal**, because the M1 local Codex agent shell had no `/dev/nvidia*` nodes. Collect outputs only; no GPU sim/stress.
+2. **M2-HOST-READONLY — DONE (2026-10-20)**: researcher ran `.venv-maniskill/bin/python` in own normal Ubuntu terminal and reported `CUDA: True`, `GPU: NVIDIA GeForce RTX 3070`. This establishes PyTorch GPU visibility in that terminal, **not** SAPIEN/PhysX `physx_cuda` operation, VRAM headroom, training speed or visibility inside Codex's agent shell. Record stdout as user-supplied evidence; no GPU sim/stress has run.
 3. **M2-EXECUTION — separate approval required**: (a) bounded GPU environment smoke/profiling with memory and walltime limits, (b) bounded end-to-end PPO pilot, (c) only then official multi-seed reproduction and comparison. Each substantive run must be separately budgeted and explicitly approved.
 
 The project follows local-first debugging with RTX 3070 8GB, cloud migration only after actual throughput/peak VRAM indicates it is useful. Main FR3 repo remains frozen. Nothing in this M2 document authorizes launching training.
@@ -63,4 +63,22 @@ Collect commands, timestamps, and outputs. `torch.cuda.is_available()` should be
 - `M2_PILOT`: only after explicit approved task/env_count/steps/seed/VRAM/walltime/storage budget, record actual stdout, GPU max usage, real end-to-end SPS, intermediate success, checkpoint evidence and failure logs. Do **not** claim convergence from a tiny pilot.
 - `M2_PASSED`: independent official-scope evidence and learner acceptance, with any reduced budget or changed controllers clearly labeled `ADAPTATION/PARTIAL` instead of `EXACT BASELINE`. No post-hoc definition changes. Full historical M0 rubric is tracked separately.
 
-**Status: M2-READ PREPARED; PPO TRAINING NOT_RUN; CUDA READONLY CHECK PENDING.**
+**Status: M2-READ PREPARED; USER-TERMINAL TORCH CUDA=TRUE; GPU PHYSICS UNVERIFIED; PPO TRAINING NOT_RUN.**
+
+
+## Learner terminal CUDA check — 2026-10-20
+
+**Command the researcher ran** from `~/lmy/maniskill-arm-rl-reproduction`:
+
+```bash
+./.venv-maniskill/bin/python -c \
+'import torch; print("CUDA:", torch.cuda.is_available()); print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "NOT_VISIBLE")'
+```
+
+**Verbatim stdout:**
+```text
+CUDA: True
+GPU: NVIDIA GeForce RTX 3070
+```
+
+Interpretation: torch has access to RTX 3070 in **researcher's regular desktop shell**. This contradicts neither `/dev/nvidia*` absence nor CUDA false previously observed *inside the Codex agent shell*; execution contexts differ. It is a positive prerequisite, **NOT a pass of ManiSkill GPU simulation**, not a training result, and not proof that the agent process can see or operate the device. Avoid installing/reinstalling GPU drivers or CUDA as a reaction to the old sandbox result. Next proposed test is a bounded PickCube `physx_cuda` 1-env no-optimizer smoke, separate approval required, preferably executed in GPU-visible terminal. Do not execute yet.

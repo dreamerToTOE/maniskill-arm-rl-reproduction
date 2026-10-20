@@ -1,13 +1,13 @@
 # M1/M2/M3 GPU training efficiency and rent-vs-local decision — PRE-TRAINING ANALYSIS
 
 **Date:** 2026-10-20
-**Status:** ANALYSIS_ONLY. CPU isolated install and three-step smoke approved by researcher; **no installation, simulator benchmark, policy optimization, or rented GPU launched by ChatGPT**. Future GPU benchmark and PPO/SAC training each require a separate approval.
+**Status:** ANALYSIS_ONLY / M1 installed + CPU smoke passed / normal-terminal PyTorch CUDA=True (2026-10-20) / `physx_cuda` not tested. No simulator benchmark, policy optimization, or rented GPU launched. Future GPU benchmark and PPO/SAC training each require a separate approval.
 
 ## Measured host facts (user-run, not assistant-run)
 
 - Active Python 3.10.12, Linux kernel 6.8/glibc 2.35, system pip 22.0.2; user-side independent project.
 - NVIDIA RTX 3070, **8192 MiB total, 5957 MiB free** snapshot; driver 580.178.04. About **5.82 GiB** currently free; it could vary with other processes.
-- Filesystem free **418 GB**. Torch/ManiSkill/SAPIEN missing from the inspected interpreter; planned isolated install pending local execution. No direct evidence of training throughput or GPU PhysX peak memory.
+- Historical preinstall audit: filesystem free **418 GB**; dependencies were initially absent in system interpreter. Subsequent M1 isolated install **succeeded** (Torch 2.5.1+cu121, ManiSkill 3.0.1, SAPIEN 3.0.0, etc.), CPU PickCube smoke passed. On 2026-10-20 the researcher ran isolated Python in normal desktop terminal: `CUDA: True`, `GPU: NVIDIA GeForce RTX 3070`. This does **not** establish GPU PhysX integration or measurable training throughput.
 - **Do not describe system as RTX 4070 or as having full 8GiB available to a single process.**
 
 ## Verified pinned ManiSkill v3.0.1 official workloads
