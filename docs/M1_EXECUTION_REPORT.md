@@ -41,7 +41,6 @@ export TMPDIR=/home/ubuntu2004/.cache/ms-m1-tmp
 ```
 
 ### 2.2 实测版本（`importlib.metadata`，非推测）
-
 | 包 | 版本 | 说明 |
 |---|---|---|
 | Python | **3.10.12** | `/usr/bin/python3`，venv 内 `sys.version` 一致 |
@@ -66,6 +65,21 @@ export TMPDIR=/home/ubuntu2004/.cache/ms-m1-tmp
 | gymnasium 1.1.1 | `gymnasium-1.1.1-py3-none-any.whl` | `9c167ec0a2b388666e37f63b2849cd2552f7f5b71938574c637bb36487eb928a` |
 | numpy 1.24.4 | `numpy-1.24.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl` | `7ffe43c74893dbf38c2b0a1f5428760a1a9c98285553c89e12d70a96a7f3a4d6` |
 | torch 2.5.1+cu121 | 未保留 wheel（`--no-cache-dir`） | **未记录**（如实标注，不编造） |
+
+### 2.4 环境重建 / Recreate on another machine
+
+整个安装已收敛为一条命令，不需要再记 §2.1 的细节：
+
+```bash
+bash scripts/setup_maniskill_env.sh              # 建 venv + 装依赖 + 写 manifest/lock
+bash scripts/setup_maniskill_env.sh --check-only # 只体检：解释器版本 + /tmp 容量
+```
+
+脚本行为：强制 `/usr/bin/python3`（3.10.x，匹配 SAPIEN cp310 wheel）；检测 `/tmp` < 3 GB 时改用
+`$HOME/.cache/ms-m1-tmp` 并写入 venv 的 `activate`；`pip check` 非零即失败退出；最后生成
+`results/m1_environment_manifest.json` 与 `results/m1_requirements.lock.txt`。
+全程不 sudo、不改系统解释器/驱动/CUDA/ROS2/Isaac Sim。迁移云机时直接跑这条命令即可，
+这也是 `docs/CLOUD_MIGRATION_PLAYBOOK.md` 要求的"远程干净安装"路径。
 
 ## 3. Smoke test 结果 / Bounded CPU smoke
 
@@ -215,9 +229,15 @@ reward[success] = 5                             # 成功硬覆盖
 - **根因定位**：`df -h /tmp` → **tmpfs 仅 10 MB**。pip 把临时解包/下载文件放 `/tmp`，
   与根分区容量无关。属于**执行环境限制**，不是磁盘不足、也不是依赖冲突。
 - **处理**：`export TMPDIR=/home/ubuntu2004/.cache/ms-m1-tmp`（位于 418 GB 根分区）后重试即成功。
+- **已固化（2026-10-20 补）**：新增 `scripts/setup_maniskill_env.sh`，自动检测 `/tmp` 可用空间
+  （阈值 3 GB），不足则把 `TMPDIR` 指向 `$HOME/.cache/ms-m1-tmp`（可用 `MANISKILL_TMPDIR` 覆盖），
+  再把同一 `export` 幂等地写进 `.venv-maniskill/bin/activate`。
+  验证：`bash scripts/setup_maniskill_env.sh --check-only` 正确报出 `/tmp` 仅 10 MB；
+  `source .venv-maniskill/bin/activate` 后 `tempfile.gettempdir()` 指向大分区，
+  且一次 17.3 MB 的 `pip download`（大于 10 MB tmpfs）成功。以后不需要再手敲 `TMPDIR`。
 - **是否属于"三次失败"**：不属于。同一 blocker 共 1 次失败 + 1 次根因修正即通过。
-- **对可复现性的影响**：普通机器 `/tmp` 通常足够大，此步骤**不需要**；已记入 `docs/FAILURE_LOG.md`。
-  迁移云机时若 `/tmp` 为 tmpfs，应同样设置 `TMPDIR`。
+- **对可复现性的影响**：普通机器 `/tmp` 通常足够大，脚本会**跳过**该分支；已记入 `docs/FAILURE_LOG.md`。
+  迁移云机时若 `/tmp` 为 tmpfs，脚本同样自动兜底。
 
 ### 6.2 `scripts/m1_inspect_pickcube.py` 的 `horizon` 字段误报为 `null`
 
