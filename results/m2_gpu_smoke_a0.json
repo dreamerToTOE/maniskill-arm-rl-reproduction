@@ -1,0 +1,139 @@
+{
+  "script": "m2_gpu_smoke_a0.py",
+  "stage": "A0",
+  "status": "VRAM_TELEMETRY_UNAVAILABLE",
+  "started_wall": "2026-10-21T12:56:34+0900",
+  "pinned": {
+    "mani_skill": "3.0.1",
+    "sapien": "3.0.0",
+    "torch": "2.5.1"
+  },
+  "timings_s": {
+    "cleanup": 1.092
+  },
+  "steps": [],
+  "vram": {
+    "telemetry": {
+      "source": "nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu",
+      "required": true,
+      "verdict": "UNAVAILABLE",
+      "reason": "nvidia-smi missing, non-zero exit, unparsable output, or timeout",
+      "probe": null,
+      "nvidia_smi_path": "/usr/bin/nvidia-smi"
+    },
+    "device_before": null,
+    "compute_apps_before": []
+  },
+  "config": {
+    "env_id": "PickCube-v1",
+    "robot": "panda",
+    "num_envs": 1,
+    "seed": 0,
+    "steps": 3,
+    "obs_mode": "state",
+    "control_mode": "pd_joint_delta_pos",
+    "reward_mode": "normalized_dense",
+    "sim_backend": "physx_cuda",
+    "render_mode": null,
+    "budget_seconds": 100.0,
+    "min_free_mib": 3072,
+    "abort_free_mib": 1536
+  },
+  "phase": "cleanup",
+  "error": "device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation: nvidia-smi missing, non-zero exit, unparsable output, or timeout; aborting without building any scene",
+  "elapsed_s": 1.204,
+  "acceptance": {
+    "ok": false,
+    "passed": 1,
+    "total": 12,
+    "checks": [
+      {
+        "id": 1,
+        "name": "run reached the end without exception",
+        "ok": false,
+        "detail": "status=VRAM_TELEMETRY_UNAVAILABLE error=device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation: nvidia-smi missing, non-zero exit, unparsable output, or timeout; aborting without building any scene"
+      },
+      {
+        "id": 2,
+        "name": "backend resolved to physx_cuda",
+        "ok": false,
+        "detail": "resolved=None"
+      },
+      {
+        "id": 3,
+        "name": "gpu_sim_enabled is True",
+        "ok": false,
+        "detail": "gpu_sim_enabled=None"
+      },
+      {
+        "id": 4,
+        "name": "max_episode_steps == 50",
+        "ok": false,
+        "detail": "max_episode_steps=None"
+      },
+      {
+        "id": 5,
+        "name": "action shape == [1, 8]",
+        "ok": false,
+        "detail": "actual_shape=[]"
+      },
+      {
+        "id": 6,
+        "name": "exactly 3 steps recorded",
+        "ok": false,
+        "detail": "len(steps)=0"
+      },
+      {
+        "id": 7,
+        "name": "no termination in any step",
+        "ok": false,
+        "detail": "terminated=[]"
+      },
+      {
+        "id": 8,
+        "name": "no truncation in any step",
+        "ok": false,
+        "detail": "truncated=[]"
+      },
+      {
+        "id": 9,
+        "name": "elapsed_steps == [1, 2, 3]",
+        "ok": false,
+        "detail": "elapsed_steps=[]"
+      },
+      {
+        "id": 10,
+        "name": "device-level VRAM telemetry present (before/after/every step)",
+        "ok": false,
+        "detail": "before=False after=False step_samples=[]"
+      },
+      {
+        "id": 11,
+        "name": "device free after run >= abort threshold 1536 MiB",
+        "ok": false,
+        "detail": "free_after=None"
+      },
+      {
+        "id": 12,
+        "name": "wall clock < min(120s external, 100s internal)",
+        "ok": true,
+        "detail": "elapsed_s=0.111"
+      }
+    ],
+    "failed_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "gate_failure_reason": "#1 run reached the end without exception (status=VRAM_TELEMETRY_UNAVAILABLE error=device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation: nvidia-smi missing, non-zero exit, unparsable output, or timeout; aborting without building any scene); #2 backend resolved to physx_cuda (resolved=None); #3 gpu_sim_enabled is True (gpu_sim_enabled=None); #4 max_episode_steps == 50 (max_episode_steps=None); #5 action shape == [1, 8] (actual_shape=[]); #6 exactly 3 steps recorded (len(steps)=0); #7 no termination in any step (terminated=[]); #8 no truncation in any step (truncated=[]); #9 elapsed_steps == [1, 2, 3] (elapsed_steps=[]); #10 device-level VRAM telemetry present (before/after/every step) (before=False after=False step_samples=[]); #11 device free after run >= abort threshold 1536 MiB (free_after=None)",
+  "finished_wall": "2026-10-21T12:56:35+0900"
+}

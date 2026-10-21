@@ -3,12 +3,12 @@
   "generated_by": "scripts/m2_static_audit.py",
   "note": "No CUDA context, no environment instantiation, no installation.",
   "audit": {
-    "total_passed": 27,
+    "total_passed": 29,
     "total_failed": 0,
     "files": [
       {
         "script": "scripts/m2_gpu_smoke_a0.py",
-        "passed": 15,
+        "passed": 17,
         "failed": 0,
         "failures": []
       },
@@ -24,7 +24,7 @@
     {
       "script": "scripts/m2_gpu_smoke_a0.py",
       "returncode": 0,
-      "passed": 16,
+      "passed": 33,
       "failed": 0,
       "ok": true
     },

@@ -59,6 +59,7 @@ EXIT_LOW_VRAM = 3
 EXIT_BUDGET = 4
 EXIT_ERROR = 5
 EXIT_VERSION = 7
+EXIT_NO_VRAM_TELEMETRY = 8
 
 _T0 = time.monotonic()
 
@@ -190,7 +191,7 @@ def episode_horizon(env: Any) -> tuple[int | None, list[str]]:
 
 
 def arm_watchdog(budget_s: float, on_fire) -> threading.Timer:
-    timer = threading.Timer(max(1.0, float(budget_s)), on_fire)
+    timer = threading.Timer(max(0.05, float(budget_s)), on_fire)
     timer.daemon = True
     timer.start()
     return timer
@@ -434,6 +435,16 @@ def main(argv: list[str] | None = None) -> int:
                 if verdict == "REFUSE":
                     entry["status"] = "SKIPPED_LOW_VRAM"
                     print(f"[n={n}] skip: free={free_before} MiB < {args.min_free_mib}", flush=True)
+                    break
+                if verdict == "UNKNOWN":
+                    entry["status"] = "VRAM_TELEMETRY_UNAVAILABLE"
+                    entry["error"] = (
+                        "nvidia-smi telemetry unavailable; refusing to size a level blind "
+                        "(device-level memory is mandatory)"
+                    )
+                    exit_code = EXIT_NO_VRAM_TELEMETRY
+                    flush()
+                    print(f"[n={n}] {entry['error']}", flush=True)
                     break
 
                 torch.cuda.empty_cache()

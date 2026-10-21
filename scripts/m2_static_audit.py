@@ -67,7 +67,13 @@ REQUIRED_IDENTS = {
     "smi_query",
 }
 PER_FILE_REQUIRED = {
-    "m2_gpu_smoke_a0.py": {"vram_verdict", "episode_horizon"},
+    "m2_gpu_smoke_a0.py": {
+        "vram_verdict",
+        "episode_horizon",
+        "telemetry_verdict",
+        "acceptance_checks",
+        "finalize_with_gate",
+    },
     "m2_gpu_sim_probe.py": {"vram_gate", "validate_env_counts", "ManiSkillVectorEnv"},
 }
 REQUIRED_STRINGS = ("nvidia-smi", "physx_cuda")
@@ -210,6 +216,9 @@ def audit_a0_specifics(a: Audit) -> None:
     a.check("A0 internal budget < 120 s external", isinstance(budget, (int, float)) and budget < 120,
             str(budget))
     a.check("A0 pins num_envs=1", "num_envs=1" in a.src.replace(" ", ""))
+    a.check("A0 has a dedicated no-telemetry exit code",
+            "EXIT_NO_VRAM_TELEMETRY" in a.src and "EXIT_GATE_FAILED" in a.src)
+    a.check("A0 telemetry gate is consulted", "telemetry_verdict(" in a.src)
 
 
 def run_self_tests(paths: list[str]) -> list[dict]:

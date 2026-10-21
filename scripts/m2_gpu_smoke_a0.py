@@ -19,15 +19,22 @@ Hard constraints baked in:
   * wall clock is bounded by a monotonic deadline checked at every phase
     boundary and before every step, plus a watchdog thread that hard-exits.
     The proposed command also wraps the process in `timeout 120`.
-  * VRAM is gated BEFORE env creation using device-level `nvidia-smi` numbers
-    and re-checked after each step. PyTorch's allocator peak is recorded only
-    as a torch-only lower bound; SAPIEN/PhysX allocations are not visible to it.
+  * VRAM telemetry from `nvidia-smi` is MANDATORY. If the tool is missing, fails,
+    or returns an unparsable value, the script aborts BEFORE creating the
+    environment, records which probe failed, and exits non-zero. There is no
+    "telemetry unknown, continue anyway" path. PyTorch's allocator peak is
+    recorded only as a torch-only lower bound; SAPIEN/PhysX allocations are not
+    visible to it.
   * no policy, no optimizer, no gradient, no training, no video, no logging
     backend, no downloads, no dependency installation.
+  * a programmatic acceptance gate re-checks 12 conditions after the run. A
+    single failed condition forces `status=GATE_FAILED` and a non-zero exit
+    code, so a "finished" run can never be reported as PASS on vibes.
 
 Exit codes:
   0 PASS | 2 FAIL_SIM_BACKEND | 3 SKIPPED_LOW_VRAM | 4 BUDGET_EXCEEDED
   5 ERROR | 6 UNEXPECTED_DONE | 7 VERSION_MISMATCH
+  8 VRAM_TELEMETRY_UNAVAILABLE | 9 ACCEPTANCE_GATE_FAILED
 
 Usage (static self-check, no CUDA touched):
   ./.venv-maniskill/bin/python scripts/m2_gpu_smoke_a0.py --self-test
@@ -56,6 +63,12 @@ EXIT_BUDGET = 4
 EXIT_ERROR = 5
 EXIT_UNEXPECTED_DONE = 6
 EXIT_VERSION = 7
+EXIT_NO_VRAM_TELEMETRY = 8
+EXIT_GATE_FAILED = 9
+
+EXPECTED_HORIZON = 50
+EXPECTED_ACTION_SHAPE = (1, 8)
+EXPECTED_ELAPSED_STEPS = [1, 2, 3]
 
 _T0 = time.monotonic()
 
@@ -142,36 +155,58 @@ def atomic_write_json(path: Path, obj: Any) -> None:
     os.replace(tmp, path)
 
 
+def smi_query_ex(fields: str) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Device-level numbers plus WHY the probe failed.
+
+    Device counters are the only view that includes SAPIEN/PhysX allocations, so
+    the diagnostics matter as much as the numbers: "nvidia-smi not on PATH",
+    "nvidia-smi exit 9 - cannot talk to the driver" and "unparsable output" are
+    three different operator problems and must not collapse into one message.
+    """
+    diag: dict[str, Any] = {
+        "binary": None,
+        "returncode": None,
+        "stderr_head": None,
+        "exception": None,
+        "command": None,
+    }
+    exe = shutil.which("nvidia-smi")
+    diag["binary"] = exe
+    if exe is None:
+        diag["exception"] = "nvidia-smi not found on PATH"
+        return None, diag
+    cmd = [exe, f"--query-gpu={fields}", "--format=csv,noheader,nounits"]
+    diag["command"] = " ".join(cmd)
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+    except Exception as exc:  # noqa: BLE001
+        diag["exception"] = f"{type(exc).__name__}: {exc}"
+        return None, diag
+    diag["returncode"] = out.returncode
+    if out.returncode != 0:
+        diag["stderr_head"] = (out.stderr or out.stdout or "").strip().splitlines()[:2]
+        return None, diag
+    lines = out.stdout.strip().splitlines()
+    if not lines:
+        diag["exception"] = "empty stdout"
+        return None, diag
+    keys = [f.strip() for f in fields.split(",")]
+    vals = [v.strip() for v in lines[0].split(",")]
+    parsed: dict[str, Any] = {}
+    for k, v in zip(keys, vals):
+        if k.startswith("memory") or k.startswith("utilization"):
+            try:
+                parsed[k] = int(float(v))
+            except ValueError:
+                parsed[k] = None
+        else:
+            parsed[k] = v
+    return parsed, diag
+
+
 def smi_query(fields: str) -> dict[str, Any] | None:
     """Device-level numbers. This is the only view that includes PhysX memory."""
-    exe = shutil.which("nvidia-smi")
-    if exe is None:
-        return None
-    try:
-        out = subprocess.run(
-            [exe, f"--query-gpu={fields}", "--format=csv,noheader,nounits"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        if out.returncode != 0:
-            return None
-        line = out.stdout.strip().splitlines()[0]
-        keys = [f.strip() for f in fields.split(",")]
-        vals = [v.strip() for v in line.split(",")]
-        parsed: dict[str, Any] = {}
-        for k, v in zip(keys, vals):
-            if k.startswith("memory") or k.startswith("utilization"):
-                try:
-                    parsed[k] = int(float(v))
-                except ValueError:
-                    parsed[k] = None
-            else:
-                parsed[k] = v
-        return parsed
-    except Exception:
-        return None
+    return smi_query_ex(fields)[0]
 
 
 def smi_compute_apps() -> list[dict[str, Any]]:
@@ -208,14 +243,144 @@ def vram_verdict(free_mib: int | None, min_free_mib: int) -> str:
     """Conservative pre-flight decision.
 
     Returns REFUSE when the device has less free memory than the reserve we
-    insist on before even creating the GPU PhysX scene. UNKNOWN is not treated
-    as OK silently - the caller records it loudly.
+    insist on before even creating the GPU PhysX scene.
+    Returns UNKNOWN only when telemetry is missing - and the caller treats
+    UNKNOWN as a hard abort (`EXIT_NO_VRAM_TELEMETRY`), never as "carry on".
     """
     if free_mib is None:
         return "UNKNOWN"
     if free_mib < min_free_mib:
         return "REFUSE"
     return "OK"
+
+
+def telemetry_verdict(probe: dict[str, Any] | None,
+                     diag: dict[str, Any] | None = None) -> tuple[str, str]:
+    """Decide whether device-level VRAM telemetry is usable.
+
+    VRAM telemetry is mandatory for Stage A0: without a `nvidia-smi` reading we
+    cannot bound the PhysX allocation, cannot prove the 8 GiB card was not
+    pushed to the edge, and cannot audit the run afterwards. So a missing or
+    broken probe is a hard stop *before* any scene is built.
+
+    Returns (verdict, reason).
+    """
+    if probe is None:
+        if diag:
+            rc = diag.get("returncode")
+            err = diag.get("stderr_head")
+            if diag.get("binary") is None:
+                return "UNAVAILABLE", "nvidia-smi not found on PATH"
+            if rc not in (None, 0):
+                detail = " | ".join(err) if isinstance(err, list) else str(err or "")
+                return "UNAVAILABLE", f"nvidia-smi exited {rc}: {detail}"[:300]
+            if diag.get("exception"):
+                return "UNAVAILABLE", f"nvidia-smi probe failed: {diag['exception']}"[:300]
+        return "UNAVAILABLE", "nvidia-smi missing, non-zero exit, unparsable output, or timeout"
+    free = probe.get("memory.free")
+    if free is None:
+        return "UNAVAILABLE", f"nvidia-smi returned no parsable memory.free (got {probe!r})"
+    if not isinstance(free, int) or free < 0:
+        return "UNAVAILABLE", f"nvidia-smi memory.free is not a non-negative int: {free!r}"
+    return "AVAILABLE", f"memory.free={free} MiB"
+
+
+def acceptance_checks(state: dict[str, Any], abort_free_mib: int,
+                      budget_seconds: float, external_limit_s: float = 120.0) -> list[dict[str, Any]]:
+    """The 12 programmatic PASS conditions for Stage A0.
+
+    Every condition is evaluated from recorded evidence only. A condition whose
+    evidence is absent counts as failed - that is the point: an aborted run must
+    not be reconstructable as a pass.
+    """
+    checks: list[dict[str, Any]] = []
+
+    def add(cid: int, name: str, ok: bool, detail: str = "") -> None:
+        checks.append({"id": cid, "name": name, "ok": bool(ok), "detail": str(detail)[:300]})
+
+    steps = state.get("steps") or []
+    backend = state.get("backend") or {}
+    action = state.get("action") or {}
+    vram = state.get("vram") or {}
+
+    add(1, "run reached the end without exception", state.get("run_completed") is True,
+        f"status={state.get('status')} error={state.get('error')}")
+
+    add(2, "backend resolved to physx_cuda", backend.get("resolved") == "physx_cuda",
+        f"resolved={backend.get('resolved')}")
+
+    add(3, "gpu_sim_enabled is True", backend.get("gpu_sim_enabled") is True,
+        f"gpu_sim_enabled={backend.get('gpu_sim_enabled')}")
+
+    add(4, f"max_episode_steps == {EXPECTED_HORIZON}", backend.get("max_episode_steps") == EXPECTED_HORIZON,
+        f"max_episode_steps={backend.get('max_episode_steps')}")
+
+    actual_shape = tuple(action.get("actual_shape") or ())
+    add(5, f"action shape == {list(EXPECTED_ACTION_SHAPE)}", actual_shape == EXPECTED_ACTION_SHAPE,
+        f"actual_shape={list(actual_shape)}")
+
+    add(6, "exactly 3 steps recorded", len(steps) == 3, f"len(steps)={len(steps)}")
+
+    add(7, "no termination in any step", bool(steps) and all(s.get("terminated") == 0 for s in steps),
+        f"terminated={[s.get('terminated') for s in steps]}")
+
+    add(8, "no truncation in any step", bool(steps) and all(s.get("truncated") == 0 for s in steps),
+        f"truncated={[s.get('truncated') for s in steps]}")
+
+    elapsed_steps = [s.get("elapsed_steps") for s in steps]
+    add(9, f"elapsed_steps == {EXPECTED_ELAPSED_STEPS}", elapsed_steps == EXPECTED_ELAPSED_STEPS,
+        f"elapsed_steps={elapsed_steps}")
+
+    have_before = (vram.get("device_before") or {}).get("memory.free") is not None
+    have_after = (vram.get("device_after") or {}).get("memory.free") is not None
+    step_samples = [s.get("vram_free_mib") for s in steps]
+    add(10, "device-level VRAM telemetry present (before/after/every step)",
+        have_before and have_after and bool(steps) and all(v is not None for v in step_samples),
+        f"before={have_before} after={have_after} step_samples={step_samples}")
+
+    free_after = (vram.get("device_after") or {}).get("memory.free")
+    add(11, f"device free after run >= abort threshold {abort_free_mib} MiB",
+        free_after is not None and free_after >= abort_free_mib,
+        f"free_after={free_after}")
+
+    elapsed_s = state.get("elapsed_s")
+    within = (
+        isinstance(elapsed_s, (int, float))
+        and elapsed_s < external_limit_s
+        and elapsed_s < float(budget_seconds)
+    )
+    add(12, f"wall clock < min({external_limit_s:.0f}s external, {budget_seconds:.0f}s internal)",
+        within, f"elapsed_s={elapsed_s}")
+
+    return checks
+
+
+def finalize_with_gate(state: dict[str, Any], abort_free_mib: int, budget_seconds: float,
+                       fallback_exit: int) -> int:
+    """Attach acceptance results and return the exit code that matches them.
+
+    Any failed condition overrides the caller's exit code, so an early abort or a
+    run that merely "finished" cannot exit 0.
+    """
+    checks = acceptance_checks(state, abort_free_mib, budget_seconds)
+    ok = all(c["ok"] for c in checks)
+    state["acceptance"] = {
+        "ok": ok,
+        "passed": sum(1 for c in checks if c["ok"]),
+        "total": len(checks),
+        "checks": checks,
+        "failed_ids": [c["id"] for c in checks if not c["ok"]],
+    }
+    if ok:
+        state["status"] = "PASS"
+        return EXIT_PASS
+    if state.get("status") in {None, "RUNNING", "PASS"}:
+        state["status"] = "GATE_FAILED"
+    reasons = "; ".join(f"#{c['id']} {c['name']} ({c['detail']})" for c in checks if not c["ok"])
+    state["gate_failure_reason"] = reasons
+    state.setdefault("error", reasons)
+    return EXIT_GATE_FAILED if fallback_exit in {EXIT_PASS, EXIT_GATE_FAILED} else fallback_exit
+
 
 
 def batched_action_shape(num_envs: int, action_shape: tuple[int, ...]) -> tuple[int, ...]:
@@ -252,7 +417,7 @@ def episode_horizon(env: Any) -> tuple[int | None, list[str]]:
 
 
 def arm_watchdog(budget_s: float, on_fire) -> threading.Timer:
-    timer = threading.Timer(max(1.0, float(budget_s)), on_fire)
+    timer = threading.Timer(max(0.05, float(budget_s)), on_fire)
     timer.daemon = True
     timer.start()
     return timer
@@ -334,6 +499,75 @@ def run_self_test() -> int:
 
     r = on_fire_factory_probe()
     check("watchdog factory callable", callable(r))
+
+    check("telemetry none", telemetry_verdict(None)[0] == "UNAVAILABLE")
+    check("telemetry empty dict", telemetry_verdict({})[0] == "UNAVAILABLE")
+    check("telemetry missing free", telemetry_verdict({"memory.used": 100})[0] == "UNAVAILABLE")
+    check("telemetry negative free", telemetry_verdict({"memory.free": -1})[0] == "UNAVAILABLE")
+    check("telemetry string free", telemetry_verdict({"memory.free": "4096"})[0] == "UNAVAILABLE")
+    check("telemetry ok", telemetry_verdict({"memory.free": 6775})[0] == "AVAILABLE")
+
+    rc9 = {"binary": "/usr/bin/nvidia-smi", "returncode": 9,
+           "stderr_head": ["NVIDIA-SMI has failed because it couldn't communicate with the "
+                           "NVIDIA driver."], "exception": None, "command": "nvidia-smi ..."}
+    verdict9, reason9 = telemetry_verdict(None, rc9)
+    check("telemetry rc=9 names the exit code", verdict9 == "UNAVAILABLE" and "exited 9" in reason9,
+          reason9)
+    check("telemetry rc=9 keeps the driver message", "communicate with the NVIDIA driver" in reason9)
+    no_binary = {"binary": None, "returncode": None, "stderr_head": None,
+                 "exception": "nvidia-smi not found on PATH", "command": None}
+    check("telemetry missing binary is distinguished",
+          "not found on PATH" in telemetry_verdict(None, no_binary)[1])
+
+    good = {
+        "run_completed": True,
+        "status": "PASS",
+        "backend": {"resolved": "physx_cuda", "gpu_sim_enabled": True, "max_episode_steps": 50},
+        "action": {"actual_shape": [1, 8]},
+        "steps": [
+            {"terminated": 0, "truncated": 0, "elapsed_steps": 1, "vram_free_mib": 6700},
+            {"terminated": 0, "truncated": 0, "elapsed_steps": 2, "vram_free_mib": 6600},
+            {"terminated": 0, "truncated": 0, "elapsed_steps": 3, "vram_free_mib": 6600},
+        ],
+        "vram": {"device_before": {"memory.free": 6775}, "device_after": {"memory.free": 6600}},
+        "elapsed_s": 12.5,
+    }
+    ok_checks = acceptance_checks(good, 1536, 100.0)
+    check("gate: good run 12/12", len(ok_checks) == 12 and all(c["ok"] for c in ok_checks),
+          str([c["id"] for c in ok_checks if not c["ok"]]))
+
+    bad_step = {**good, "steps": [dict(s) for s in good["steps"]]}
+    bad_step["steps"][1]["truncated"] = 1
+    check("gate: truncation caught",
+          not all(c["ok"] for c in acceptance_checks(bad_step, 1536, 100.0)))
+
+    no_telemetry = {**good, "vram": {"device_before": {"memory.free": None},
+                                     "device_after": {"memory.free": 6600}}}
+    failed_ids = [c["id"] for c in acceptance_checks(no_telemetry, 1536, 100.0) if not c["ok"]]
+    check("gate: missing telemetry caught", 10 in failed_ids, str(failed_ids))
+
+    slow = {**good, "elapsed_s": 130.0}
+    check("gate: wall clock caught",
+          not all(c["ok"] for c in acceptance_checks(slow, 1536, 100.0)))
+
+    stuck = {**good, "run_completed": False, "status": "ERROR"}
+    check("gate: incomplete run caught",
+          not all(c["ok"] for c in acceptance_checks(stuck, 1536, 100.0)))
+
+    probe_state = json.loads(json.dumps(good))
+    code = finalize_with_gate(probe_state, 1536, 100.0, EXIT_PASS)
+    check("gate: finalize pass -> exit 0", code == EXIT_PASS and probe_state["acceptance"]["ok"])
+
+    failing = json.loads(json.dumps(stuck))
+    code = finalize_with_gate(failing, 1536, 100.0, EXIT_PASS)
+    check("gate: finalize fail -> non-zero",
+          code != 0 and failing["acceptance"]["ok"] is False,
+          f"exit={code} status={failing.get('status')}")
+
+    early = {**json.loads(json.dumps(stuck)), "status": "FAIL_SIM_BACKEND"}
+    code = finalize_with_gate(early, 1536, 100.0, EXIT_BACKEND)
+    check("gate: early abort keeps its own exit code",
+          code == EXIT_BACKEND and early["status"] == "FAIL_SIM_BACKEND", f"exit={code}")
 
     print(f"\nself-test: {'ALL PASS' if not failures else 'FAILURES: ' + ', '.join(failures)}")
     return EXIT_PASS if not failures else 1
@@ -417,13 +651,42 @@ def main(argv: list[str] | None = None) -> int:
     timer = arm_watchdog(args.budget_seconds, _on_timeout)
     env = None
     exit_code = EXIT_ERROR
+
+    def finish(code: int) -> int:
+        """Attach the 12-condition acceptance gate, then return the exit code."""
+        state["elapsed_s"] = elapsed()
+        return finalize_with_gate(state, args.abort_free_mib, args.budget_seconds, code)
+
     try:
-        state["phase"] = "preflight"
-        state["vram"]["device_before"] = smi_query(
+        state["phase"] = "vram_telemetry"
+        probe, probe_diag = smi_query_ex(
             "name,driver_version,memory.total,memory.used,memory.free,utilization.gpu"
         )
+        tel_verdict, tel_reason = telemetry_verdict(probe, probe_diag)
+        state["vram"]["telemetry"] = {
+            "source": "nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu",
+            "required": True,
+            "verdict": tel_verdict,
+            "reason": tel_reason,
+            "probe": probe,
+            "nvidia_smi_path": shutil.which("nvidia-smi"),
+            "diagnostics": probe_diag,
+        }
+        state["vram"]["device_before"] = probe
         state["vram"]["compute_apps_before"] = smi_compute_apps()
-        free_before = (state["vram"]["device_before"] or {}).get("memory.free")
+        rec.flush()
+        print(f"[vram] telemetry verdict={tel_verdict} :: {tel_reason}", flush=True)
+        if tel_verdict != "AVAILABLE":
+            state["status"] = "VRAM_TELEMETRY_UNAVAILABLE"
+            state["error"] = (
+                "device-level VRAM telemetry is mandatory for Stage A0 and could not be "
+                f"read before env creation: {tel_reason}; aborting without building any scene"
+            )
+            rec.flush()
+            print(f"FATAL: {state['error']}", file=sys.stderr)
+            return finish(EXIT_NO_VRAM_TELEMETRY)
+
+        free_before = probe.get("memory.free") if probe else None
         verdict = vram_verdict(free_before, args.min_free_mib)
         state["vram"]["preflight_verdict"] = verdict
         rec.flush()
@@ -431,10 +694,12 @@ def main(argv: list[str] | None = None) -> int:
               f" (need >= {args.min_free_mib})", flush=True)
         if verdict == "REFUSE":
             state["status"] = "SKIPPED_LOW_VRAM"
+            state["error"] = (
+                f"free device memory {free_before} MiB < required {args.min_free_mib} MiB; "
+                "no scene was built"
+            )
             rec.flush()
-            return EXIT_LOW_VRAM
-        if verdict == "UNKNOWN":
-            state["notes"] = "nvidia-smi unavailable; device-level VRAM unverified for this run"
+            return finish(EXIT_LOW_VRAM)
 
         t = time.monotonic()
         import torch
@@ -462,7 +727,7 @@ def main(argv: list[str] | None = None) -> int:
             state["status"] = "VERSION_MISMATCH"
             rec.flush()
             print(f"refusing: version mismatch {state['version_mismatches']}", file=sys.stderr)
-            return EXIT_VERSION
+            return finish(EXIT_VERSION)
         deadline.check("import")
 
         state["phase"] = "cuda_preflight"
@@ -480,7 +745,7 @@ def main(argv: list[str] | None = None) -> int:
             state["error"] = "torch.cuda.is_available() is False; physx_cuda cannot be used"
             rec.flush()
             print("FATAL: CUDA not available in this interpreter", file=sys.stderr)
-            return EXIT_BACKEND
+            return finish(EXIT_BACKEND)
         deadline.check("cuda_preflight")
 
         state["phase"] = "build_env"
@@ -526,7 +791,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             rec.flush()
             print(f"FATAL: {state['error']}", file=sys.stderr)
-            return EXIT_BACKEND
+            return finish(EXIT_BACKEND)
         deadline.check("verify_backend")
 
         state["phase"] = "reset"
@@ -567,6 +832,8 @@ def main(argv: list[str] | None = None) -> int:
 
             term_i = int(bool(terminated.any().item())) if hasattr(terminated, "any") else int(bool(terminated))
             trunc_i = int(bool(truncated.any().item())) if hasattr(truncated, "any") else int(bool(truncated))
+            vram_probe, vram_probe_diag = smi_query_ex("memory.free")
+            tel_ok, tel_why = telemetry_verdict(vram_probe, vram_probe_diag)
             step_rec = {
                 "step": i,
                 "wall_s": dt,
@@ -577,12 +844,23 @@ def main(argv: list[str] | None = None) -> int:
                 "elapsed_steps": int(unwrapped.elapsed_steps.max().item()),
                 "auto_reset_used": "final_observation" in info,
                 "obs": _tensor_stats(obs),
-                "vram_free_mib": (smi_query("memory.free") or {}).get("memory.free"),
+                "vram_free_mib": (vram_probe or {}).get("memory.free"),
+                "vram_telemetry": {"verdict": tel_ok, "reason": tel_why},
                 "torch_peak_alloc_mib": round(torch.cuda.max_memory_allocated() / 2**20, 1),
             }
             state["steps"].append(step_rec)
             rec.flush()
             print(json.dumps(step_rec, ensure_ascii=False), flush=True)
+
+            if tel_ok != "AVAILABLE":
+                state["status"] = "VRAM_TELEMETRY_LOST"
+                state["error"] = (
+                    f"device-level VRAM telemetry lost at step {i}: {tel_why}; "
+                    "A0 requires device-level memory evidence for every step, aborting"
+                )
+                rec.flush()
+                print(f"FATAL: {state['error']}", file=sys.stderr)
+                return finish(EXIT_NO_VRAM_TELEMETRY)
 
             free_now = step_rec["vram_free_mib"]
             if free_now is not None and free_now < args.abort_free_mib:
@@ -591,7 +869,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"free device memory {free_now} MiB < abort threshold {args.abort_free_mib} MiB"
                 )
                 rec.flush()
-                return EXIT_ERROR
+                return finish(EXIT_ERROR)
 
             if trunc_i or term_i:
                 state["status"] = "UNEXPECTED_DONE"
@@ -602,15 +880,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 rec.flush()
                 print(f"FAIL: {state['error']}", file=sys.stderr)
-                return EXIT_UNEXPECTED_DONE
+                return finish(EXIT_UNEXPECTED_DONE)
 
         state["phase"] = "measure_memory"
         torch.cuda.synchronize()
         state["vram"]["torch_peak_alloc_mib"] = round(torch.cuda.max_memory_allocated() / 2**20, 1)
         state["vram"]["torch_peak_reserved_mib"] = round(torch.cuda.max_memory_reserved() / 2**20, 1)
-        state["vram"]["device_after"] = smi_query(
-            "memory.total,memory.used,memory.free,utilization.gpu"
-        )
+        after, after_diag = smi_query_ex("memory.total,memory.used,memory.free,utilization.gpu")
+        state["vram"]["device_after"] = after
+        state["vram"]["device_after_diagnostics"] = after_diag
+        state["vram"]["device_after_verdict"] = telemetry_verdict(after, after_diag)[0]
         state["vram"]["compute_apps_after"] = smi_compute_apps()
         state["vram"]["attribution_note"] = (
             "torch_peak_* counts only the PyTorch caching allocator. SAPIEN/PhysX "
@@ -620,8 +899,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         rec.flush()
 
-        state["status"] = "PASS"
-        exit_code = EXIT_PASS
+        state["run_completed"] = True
+        exit_code = finish(EXIT_PASS)
     except BudgetExhausted as exc:
         state["status"] = "BUDGET_EXCEEDED"
         state["error"] = str(exc)
@@ -655,6 +934,10 @@ def main(argv: list[str] | None = None) -> int:
         state["elapsed_s"] = elapsed()
         state["finished_wall"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         rec.flush()
+        acc = state.get("acceptance") or {}
+        if acc:
+            print(f"acceptance: {acc.get('passed')}/{acc.get('total')} passed, "
+                  f"failed_ids={acc.get('failed_ids')}", flush=True)
         print(f"status={state['status']} elapsed={state['elapsed_s']}s -> {args.output}",
               flush=True)
 

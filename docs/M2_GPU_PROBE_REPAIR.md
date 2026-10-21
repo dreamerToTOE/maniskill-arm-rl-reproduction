@@ -1,6 +1,7 @@
 # M2 GPU Probe — Repair Report (Stage A0 ready, nothing executed)
 
-> 日期 2026-10-21 · 状态 **PROBE_REPAIRED / STATIC_CHECKS_PASS / A0_NOT_RUN / A1_NOT_AUTHORIZED**
+> 日期 2026-10-21 · 状态 **PROBE_REPAIRED / STATIC_CHECKS_PASS / A0_ATTEMPTED_ONCE_BLOCKED_ON_GPU_VISIBILITY / A1_NOT_AUTHORIZED**
+> 执行记录见 §7：A0 已按批准命令跑过**一次**，在建场景之前被强制遥测闸拦下（退出码 8），本轮 session 内无 `/dev/nvidia*`。
 > 依据：`docs/M2_INDEPENDENT_REVIEW.md`（6 项阻塞缺陷）、本文件（逐项修复对照）
 > 上游锁定不变：ManiSkill `3.0.1` @ `a4a4f9272ad64b1564035874b605ceb687b63ed8`，SAPIEN `3.0.0`，torch `2.5.1`
 > **本轮没有执行任何 GPU 仿真、没有安装任何依赖、没有创建过 CUDA context。**
@@ -144,6 +145,53 @@ gpu_sim      = bool(unwrapped.gpu_sim_enabled)        # 必须 is True
 
 ---
 
+### 2.8 显存遥测缺失 = 建场景前硬中止（第二轮补强）
+
+**问题**：第一版在 `nvidia-smi` 读不到时只把 `verdict` 记成 `UNKNOWN` 并继续，等于"看不见显存也要跑"。
+这既违反 8 GiB 的安全前提，也让事后无法审计——PhysX 的分配量只有设备级计数器看得见。
+
+**修复**：`telemetry_verdict()` 成为强制闸，位置在 `import torch` **之前**：
+
+| 情况 | 判定 | 行为 |
+|---|---|---|
+| PATH 上找不到 `nvidia-smi` | `UNAVAILABLE` | 退出码 **8**，`status=VRAM_TELEMETRY_UNAVAILABLE`，`error` 写明"not found on PATH" |
+| `nvidia-smi` 非零退出 | `UNAVAILABLE` | 退出码 8，`error` 写明 `exited <rc>: <stderr 前两行>`（例如 rc=9 "couldn't communicate with the NVIDIA driver"） |
+| 输出无法解析 / `memory.free` 非非负整数 / 空 stdout | `UNAVAILABLE` | 退出码 8，`error` 写明具体字段 |
+| 运行中逐步采样丢失 | `UNAVAILABLE` | 立刻中止，`status=VRAM_TELEMETRY_LOST`，退出码 8 |
+
+诊断宽度是故意的：『不在 PATH』『退出码 9 连不上驱动』『输出不可解析』是三种不同的运维问题，
+不能塌缩成同一句"遥测不可用"。`state["vram"]["telemetry"]["diagnostics"]` 里保存
+`binary / returncode / stderr_head / exception / command`，供事后定位。
+
+**没有**任何"遥测未知但继续"的分支——`grep -n "UNKNOWN" ` 在 A0 里只剩 `vram_verdict` 的返回值定义，
+调用方一律走中止路径。
+
+### 2.9 程序化验收门：12 条，任一失败即非零退出（第二轮补强）
+
+**问题**：第一版跑完就 `status="PASS"`，等于"跑完即通过"。这违反了 AGENTS.md 的
+"never claim success without measured artifacts"。
+
+**修复**：`acceptance_checks()` 只从已记录的证据里判 12 条，`finalize_with_gate()` 把结果写进
+`state["acceptance"]` 并决定退出码。**证据缺失一律算失败**，所以被中止的运行无法被事后拼成 PASS。
+
+| # | 判据 | 证据字段 |
+|---|---|---|
+| 1 | 全程无异常到达终点 | `run_completed is True` |
+| 2 | 后端解析为 `physx_cuda` | `backend.resolved` |
+| 3 | `gpu_sim_enabled is True` | `backend.gpu_sim_enabled` |
+| 4 | horizon 为 50 | `backend.max_episode_steps` |
+| 5 | 动作形状为 `[1, 8]` | `action.actual_shape` |
+| 6 | 恰好记录 3 步 | `len(steps)` |
+| 7 | 每步 `terminated == 0` | `steps[*].terminated` |
+| 8 | 每步 `truncated == 0` | `steps[*].truncated` |
+| 9 | `elapsed_steps == [1,2,3]` | `steps[*].elapsed_steps` |
+| 10 | 设备级显存遥测齐全（前/后/每步） | `vram.device_before/after`、`steps[*].vram_free_mib` |
+| 11 | 跑完剩余显存 ≥ 中止阈值 | `vram.device_after.memory.free` |
+| 12 | 墙钟 < min(120 s 外部, 内部预算) | `elapsed_s` |
+
+退出码规则：12 条全过 → 0；否则若非提前失败则 `status=GATE_FAILED` 且退出码 **9**；
+若是提前失败（如后端不符）则保留其专属退出码（2/3/6/8），但仍写满 12 条判据。
+
 ## 3. Stage A0 规格（待批准执行）
 
 | 项 | 值 |
@@ -161,14 +209,9 @@ gpu_sim      = bool(unwrapped.gpu_sim_enabled)        # 必须 is True
 | 禁止 | 无策略、无优化器、无梯度、无 checkpoint、无 wandb/tensorboard、无额外依赖、无云端 |
 | 输出 | `results/m2_gpu_smoke_a0.json`（增量写盘）+ stdout |
 
-**通过判据（全部满足才算 PASS）**：
-1. 退出码 0，`status == "PASS"`；
-2. `backend.resolved == "physx_cuda"` 且 `gpu_sim_enabled == true`；
-3. `backend.max_episode_steps == 50`（从 wrapper 链读出，不是 `env.spec`）；
-4. `action.actual_shape == [1, 8]`；
-5. 三步 `terminated == 0 and truncated == 0`；`elapsed_steps` 依次为 1, 2, 3；
-6. `vram.device_after.memory.free >= abort_free_mib`；
-7. `elapsed_s < 120`。
+**通过判据**：不再由人工看数字决定，改由 §2.9 的 12 条程序化验收门判定。
+`results/m2_gpu_smoke_a0.json` 的 `acceptance.{ok,passed,total,checks,failed_ids}` 就是结论本身；
+`status == "PASS"` 与退出码 0 必须同时成立。
 
 **A0 明确不能证明的事**：不能证明吞吐、不能证明多环境显存、不能证明训练可跑、不能证明收敛。
 它只回答"CUDA PhysX 在这台机器上能不能起来"。
@@ -241,7 +284,71 @@ wrapper 链 horizon 解析、JSON 原子写、看门狗线程确实会触发。
 
 ---
 
-## 6. 本轮明确没有做的事
+## 6. 本轮明确没有做的事（第二轮之后的实际情况见 §7）
 
-未执行 A0；未执行 A1；未创建 CUDA context；未实例化任何 ManiSkill 环境；未安装任何包；
+未执行 A1；未创建 CUDA context；未实例化任何 ManiSkill 环境；未安装任何包；
 未下载 checkpoint；未训练；未改上游源码；未改驱动/CUDA/ROS2/Isaac Sim；未租云 GPU。
+A0 已按批准命令执行**一次**，结果见 §7。
+
+---
+
+## 7. A0 执行记录（2026-10-21，唯一一次）
+
+**命令**（与批准版逐字一致）：
+
+```bash
+cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv
+timeout --signal=TERM --kill-after=10s 120 \
+  ./.venv-maniskill/bin/python scripts/m2_gpu_smoke_a0.py \
+    --env-id PickCube-v1 --robot panda --seed 0 --steps 3 \
+    --budget-seconds 100 --min-free-mib 3072 --abort-free-mib 1536 \
+    --output results/m2_gpu_smoke_a0.json 2>&1 | tee results/raw/m2_gpu_smoke_a0.log
+```
+
+**结果：未进入仿真。退出码 8，`status=VRAM_TELEMETRY_UNAVAILABLE`，1.2 秒结束，`steps` 为空。**
+
+```
+[vram] telemetry verdict=UNAVAILABLE :: nvidia-smi missing, non-zero exit, unparsable output, or timeout
+FATAL: device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation:
+       ...; aborting without building any scene
+acceptance: 1/12 passed, failed_ids=[1,2,3,4,5,6,7,8,9,10,11]
+status=VRAM_TELEMETRY_UNAVAILABLE elapsed=1.204s -> results/m2_gpu_smoke_a0.json
+exit=8
+```
+
+（第一版的 reason 文案还不够精确，已在同轮补成"`exited 9: couldn't communicate with the NVIDIA driver`"，
+但**没有**为了刷新文案而重跑 A0——批准的是"恰好一次"，证据文件保持原始状态；
+精确诊断另存 `results/raw/m2_a0_gpu_unavailable_diag.log`。）
+
+### 7.1 根因：本轮 session 又看不到 GPU 设备节点
+
+| 检查（只读） | 输出 |
+|---|---|
+| `ls -l /dev/nvidia*` | **No such file or directory** |
+| `which nvidia-smi` | `/usr/bin/nvidia-smi`（二进制在） |
+| `nvidia-smi --query-gpu=memory.free ...` | `NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.` **rc=9** |
+| `/proc/driver/nvidia/version` | `NVRM 580.178.04`（**驱动模块已加载**） |
+| `lspci` | `GA104 [GeForce RTX 3070 Lite Hash Rate]`（**卡在**） |
+| venv 内 `torch.cuda.is_available()` | **False**，`device_count=0`（`Can't initialize NVML`） |
+
+结论：不是驱动故障、不是卡不在、不是 torch 装错，而是**本 session 没有暴露 `/dev/nvidia*` 设备节点**——
+与 2026-10-20 M1 那次同一类问题（`docs/M2_INDEPENDENT_REVIEW.md` §5 与 `PROGRESS.md` 未知项 #1 已预警"会话级、会回退"）。
+10-21 上午的阳性读数（`nvidia-smi` 正常、`torch.cuda=True`）说明可见性在两个方向都会变。
+
+**没做的事**：没有改驱动、没有改设备权限、没有加 `--privileged`、没有换容器、没有重试 A0。
+
+### 7.2 这次失败证明了什么、没证明什么
+
+- **证明了**：强制遥测闸有效——在**没有任何 CUDA 上下文、没有建任何场景**的情况下干净退出，退出码 8，
+  `steps` 为空，12 条验收门中 11 条判失败，JSON 里留着 reason 与诊断字段。这本身是 §2.8 的正向证据。
+- **没有证明**：`physx_cuda` 能否建场景、能否 reset、能否走 3 步、显存占用多少。
+  **A0 依然是 NOT PASSED**，M2 的 `PHYSX_CUDA_UNVERIFIED` 状态不变。
+
+### 7.3 恢复路径（需要研究者操作，不需要改代码）
+
+1. 在你自己的桌面终端确认 `nvidia-smi` 正常（那里一直是可用的）；
+2. 重开一次宿主应用/会话，让新进程重新拿到 `/dev/nvidia*`（10-21 09:57 那次就是这么恢复的）；
+3. 恢复后用 `ls -l /dev/nvidia*` + `nvidia-smi` 复核，再**重新批准一次** A0（因为"恰好一次"已经用掉）。
+
+脚本无需改动：同一份代码在 GPU 可见时按 12 条判据给出 PASS/FAIL，不可见时以退出码 8 拒绝。
