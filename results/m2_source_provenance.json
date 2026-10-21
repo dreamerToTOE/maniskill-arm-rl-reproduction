@@ -1,0 +1,61 @@
+{
+  "upstream": "mani-skill/ManiSkill",
+  "tag": "v3.0.1",
+  "commit": "a4a4f9272ad64b1564035874b605ceb687b63ed8",
+  "method": "GitHub Contents API (api.github.com), base64 decoded, read-only; files NOT committed to this repo (Apache-2.0 upstream, not vendored)",
+  "fetched_utc": "2026-10-21T01:20Z",
+  "files": {
+    "ppo.py": {
+      "size": 22982,
+      "lines": 471,
+      "blob_sha": "66802de0653061da550d6600d6346be374dbf974",
+      "path": "examples/baselines/ppo/ppo.py",
+      "api_url": "https://api.github.com/repos/mani-skill/ManiSkill/contents/examples/baselines/ppo/ppo.py?ref=a4a4f9272ad64b1564035874b605ceb687b63ed8",
+      "html_url": "https://github.com/mani-skill/ManiSkill/blob/a4a4f9272ad64b1564035874b605ceb687b63ed8/examples/baselines/ppo/ppo.py"
+    },
+    "ppo_fast.py": {
+      "size": 22681,
+      "lines": 523,
+      "blob_sha": "969e56401768e3c2fe7a25a19efb5cfae4ae4aa6",
+      "path": "examples/baselines/ppo/ppo_fast.py",
+      "api_url": "https://api.github.com/repos/mani-skill/ManiSkill/contents/examples/baselines/ppo/ppo_fast.py?ref=a4a4f9272ad64b1564035874b605ceb687b63ed8",
+      "html_url": "https://github.com/mani-skill/ManiSkill/blob/a4a4f9272ad64b1564035874b605ceb687b63ed8/examples/baselines/ppo/ppo_fast.py"
+    },
+    "baselines.sh": {
+      "size": 7727,
+      "lines": 226,
+      "blob_sha": "1af67fe34378374f8a842b1296d568455a178962",
+      "path": "examples/baselines/ppo/baselines.sh",
+      "api_url": "https://api.github.com/repos/mani-skill/ManiSkill/contents/examples/baselines/ppo/baselines.sh?ref=a4a4f9272ad64b1564035874b605ceb687b63ed8",
+      "html_url": "https://github.com/mani-skill/ManiSkill/blob/a4a4f9272ad64b1564035874b605ceb687b63ed8/examples/baselines/ppo/baselines.sh"
+    }
+  },
+  "verified_facts": {
+    "official_pickcube_cmd": "ppo_fast.py --num_envs=4096 --num-steps=4 --update_epochs=8 --num_minibatches=32 --total_timesteps=50_000_000 --num_eval_envs=16 --cudagraphs --track",
+    "official_seeds": [
+      9351,
+      4796,
+      1788
+    ],
+    "batch_size": 16384,
+    "minibatch_size": 512,
+    "num_iterations": 3051,
+    "actual_collected_steps": 49987584,
+    "ppo_py_defaults": {
+      "num_envs": 512,
+      "num_steps": 50,
+      "update_epochs": 4,
+      "total_timesteps": 10000000,
+      "batch_size": 25600,
+      "minibatch_size": 800,
+      "num_iterations": 390
+    },
+    "ppo_fast_imports": [
+      "tensordict",
+      "wandb",
+      "tqdm",
+      "torch.utils.tensorboard"
+    ],
+    "torchrl_used": false
+  }
+}

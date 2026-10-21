@@ -65,7 +65,10 @@ L_total = L_policy + c_v * L_value − c_e * Entropy
 L_value = 0.5 * mean((V_new(s_t) − R_t)^2)
 ```
 
-这是 `ppo.py` 的 Loss 形状；Actor、Critic 参数经 Adam 和梯度裁剪更新，`entropy` 项鼓励探索（默认 `ent_coef=0.0` 的前提下不会产生该项的梯度）。
+这是 `ppo.py` 的 Loss 形状（**433 行原文**：`loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef`）；
+`actor_mean` 与可学习的 `actor_logstd` 同属 `agent.parameters()`，由**同一个 Adam**（245 行）更新；
+`critic` 只由 `v_loss` 更新；梯度经 `clip_grad_norm_(max_grad_norm=0.5)`（437 行）裁剪。
+`entropy` 项鼓励探索（默认 `ent_coef=0.0` 时该项对梯度贡献为 0）。
 
 ### 2.4 一个最小数值例子（纯教学，不是运行结果）
 
@@ -88,12 +91,52 @@ L_value = 0.5 * mean((V_new(s_t) − R_t)^2)
 - https://github.com/mani-skill/ManiSkill/blob/a4a4f9272ad64b1564035874b605ceb687b63ed8/examples/baselines/ppo/ppo.py
 - https://github.com/mani-skill/ManiSkill/blob/a4a4f9272ad64b1564035874b605ceb687b63ed8/examples/baselines/ppo/ppo_fast.py
 
+### 3.1 官方配置 vs 教学配置的算术（2026-10-21 核对 `baselines.sh`）
+
+| 量 | `ppo.py` 默认 | 官方 PickCube（`baselines.sh` → `ppo_fast.py`） |
+|---|---|---|
+| `num_envs` | 512 | **4096** |
+| `num_steps` | 50 | **4** |
+| batch = envs×steps | 25,600 | **16,384** |
+| `num_minibatches` → minibatch | 32 → 800 | 32 → **512** |
+| `update_epochs` | 4 | **8** |
+| `total_timesteps` | 10,000,000 | **50,000,000** |
+| iterations = total // batch | 390 | **3051** |
+| 实际采集步数 | 9,984,000 | **49,987,584**（整除截断，略少于 50M） |
+| 加速 | — | `--cudagraphs`（+ 可选 `--compile`） |
+| eval envs / seeds | 8 / 1 | **16 / 9351, 4796, 1788** |
+
+→ 「理解 `ppo.py`」不等于「复现官方基线」。另注意 **`num_steps=4`** 意味着每轮只采 4 步、
+一个 episode（50 步）要跨 13 个左右 iteration 才走完，**不是**"每 episode 只能走 4 步"。
+
+### 3.2 跑起来还缺什么（实测，2026-10-21）
+
+| 包 | `ppo.py` | `ppo_fast.py` | 当前 |
+|---|---|---|---|
+| `tensorboard` | 必须（15 行硬 import） | 必须（26 行） | **缺失** |
+| `tensordict` | 不需要 | 必须（20/28/29 行） | **缺失** |
+| `wandb` | 仅 `--track` 时才导入 | **顶层无条件**（27 行） | **缺失** |
+| `tqdm` / `tyro` | 否 / 是 | 是 / 是 | 已装 |
+
+安装这些属于新增依赖，**需单独批准**；见 `docs/M2_GPU_PILOT_PROPOSAL.md`。
+
 ### 来源上的关键区别与风险
 
 1. **教学 `ppo.py` ≠ 官方大规模 PickCube 性能基准本身**。官方 `baselines.sh` 选 `ppo_fast.py`、4096 env、4 rollout steps、8 update epochs、32 minibatches、50M steps/seed、cudagraphs、三 seeds。取教育用途的小配置来运行时要标记适配实验。
 2. `ppo.py` 采样无界高斯动作，用采样动作算 `logprob`，但运行 `envs.step(clip_action(action))`。**Policy log probability 和实际发给控制器的动作可能不同**；未来审查饱和比率（动作越界比例）和偏差，而不是假装完全同一分布。
-3. `next_done = terminations | truncations`，并通过 `final_observation` 获取额外 `final_values`。本代码 GAE 中 `next_not_done` 的使用与 Bootstrap 的边界逻辑须对照算法推导；作者亦在该分支留有注释，不得先声称一般条件下必然完全正确或完全有误。
-4. `ppo_fast.py` 使用额外 `torchrl`、`tensordict` 和 `CUDA Graphs`，本地依赖是否齐备未知，不要擅自 `pip install`。与普通 `ppo.py` 优化器调度、数据容器等实现差异需单独在准备文档中列出。
+3. `next_done = terminations | truncations`（322 行），并通过 `final_observation` 获取额外 `final_values`（331 行）。
+   **机制已查清（2026-10-21 源码核对，详见 `docs/M2_SOURCE_REVIEW.md` §5）**：
+   向量环境在 `dones` 处先克隆"重置前"的观测存进 `infos["final_observation"]`，再重置；
+   所以 `next_obs` 是新 episode 的起点，`final_observation` 才是旧 episode 真正的 `o_{t+1}`。
+   → 截断时用它做 Bootstrap 是**正确**的；成功终止时也用它，等于在终止状态上多加了一项
+   `γ·V(s_T)`，而严格理论下终止状态应为 0 —— **这是一处真实的小偏差，方向是抬高价值目标**。
+   λ 递归在两种 done 处都被切断。作者在 373 行自注：
+   `# Here actually we should use next_not_terminated, but we don't have lastgaelam if terminated`。
+   因此**不能说这段实现"错"，但它确实把 termination 与 truncation 当同一种边界处理**。
+4. `ppo_fast.py` 的额外依赖**实测为 `tensordict`、`wandb`、`tqdm`、`tensorboard`**；
+   **`torchrl` 在该文件中出现 0 次**（早期文档写"需要 torchrl"是错的，已修正）。
+   注意 `wandb` 在 27 行**顶层无条件 import**，即使不加 `--track` 也必须安装。
+   当前 venv 三者全缺，**两个脚本都会在 import 阶段失败**（与 GPU 无关）；安装需单独批准。
 5. 训练 `SPS` 是包含 rollout 和梯度更新的端到端速度；`rollout_fps` 只是采样速度。CPU 三步零动作 Smoke 不能用于估算 RTX 3070 训练成本。
 6. 官方 PPO 默认 `control_mode=pd_joint_delta_pos`，官方 SAC PickCube 示例 `pd_ee_delta_pos`，未匹配控制器的成效差异不能归因于 PPO vs SAC。
 

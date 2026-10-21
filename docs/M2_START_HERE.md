@@ -1,10 +1,12 @@
 # M2 START HERE — PickCube official PPO baseline (study first; no training)
 
-> **2026-10-20, state: SOURCE-VERIFIED / LEARNING-MATERIAL-READY / TORCH-CUDA-TRUE-IN-RESEARCHER-TERMINAL / PHYSX-CUDA-UNVERIFIED / TRAINING-NOT-RUN.**
+> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / GPU-VISIBLE-IN-AGENT-SHELL / PHYSX-CUDA-UNVERIFIED / PILOT-PROPOSAL-PENDING / TRAINING-NOT-RUN.**
 >
 > Prerequisite: M1 PASSED at commit `d08e5870368c12644ff385e17f78068ad4bbb774`. Researcher approved **M1 isolated installation + 3-zero-action CPU smoke only**. This is not approval for M2 GPU simulation benchmarks or PPO training.
 >
 > Upstream: ManiSkill **v3.0.1** source SHA `a4a4f9272ad64b1564035874b605ceb687b63ed8`.
+>
+> 2026-10-21 additions: [`M2_SOURCE_REVIEW.md`](M2_SOURCE_REVIEW.md) (line-by-line verification of the learning pack, three corrections, official-vs-teaching arithmetic, dependency gaps, RTX 3070 risk) and [`M2_GPU_PILOT_PROPOSAL.md`](M2_GPU_PILOT_PROPOSAL.md) (bounded Stage A probe + Stage B pilot, awaiting approval). GPU visibility inside the agent shell was **re-tested and is now positive** — see §9 of the review; this supersedes the earlier "no device nodes" reading without implying any driver change.
 
 ## M2 scope and scientific claim
 
@@ -63,7 +65,7 @@ Collect commands, timestamps, and outputs. `torch.cuda.is_available()` should be
 - `M2_PILOT`: only after explicit approved task/env_count/steps/seed/VRAM/walltime/storage budget, record actual stdout, GPU max usage, real end-to-end SPS, intermediate success, checkpoint evidence and failure logs. Do **not** claim convergence from a tiny pilot.
 - `M2_PASSED`: independent official-scope evidence and learner acceptance, with any reduced budget or changed controllers clearly labeled `ADAPTATION/PARTIAL` instead of `EXACT BASELINE`. No post-hoc definition changes. Full historical M0 rubric is tracked separately.
 
-**Status: M2-READ PREPARED; USER-TERMINAL TORCH CUDA=TRUE; GPU PHYSICS UNVERIFIED; PPO TRAINING NOT_RUN.**
+**Status: M2-READ PREPARED + SOURCE-CORRECTED; TORCH CUDA=TRUE IN BOTH the researcher terminal and (as of 2026-10-21) the agent shell; GPU PHYSICS UNVERIFIED; PPO SCRIPTS CANNOT IMPORT (missing deps); PPO TRAINING NOT_RUN.**
 
 
 ## Learner terminal CUDA check — 2026-10-20
