@@ -1,6 +1,12 @@
 # M2 GPU 运行报批 — 分阶段资源上限方案
 
-> 状态：**PROPOSAL_ONLY / NOT_APPROVED / NOT_RUN — ORIGINAL STAGE A CURRENTLY HELD FOR TECHNICAL REPAIR**
+> 状态：**PROPOSAL_ONLY / NOT_APPROVED / NOT_RUN — STAGE A0 REPAIRED AND READY, A1 NOT AUTHORIZED**
+>
+> **2026-10-21 修复完成：** 原 Stage A 64→4096 扫描已被独立复核否决并冻结。修复后的方案拆成两个脚本，
+> 逐项修复见 `docs/M2_GPU_PROBE_REPAIR.md`，静态检查证据见 `results/raw/m2_static_checks.log`：
+> **A0** = `scripts/m2_gpu_smoke_a0.py`（1 env / 3 步零动作 / 内部 100 s + 外部 `timeout 120` / 零依赖），
+> **A1** = `scripts/m2_gpu_sim_probe.py`（重写，默认 16/64/128/256，512 需 `--allow-512`，>512 直接拒绝）。
+> 两者都**未执行**。A0 的拟执行命令见 §0.1 与 `docs/M2_GPU_PROBE_REPAIR.md` §3.1。
 >
 > **2026-10-21 independent review:** Do **not** run the Stage A 64→4096 sweep as written. The script passes an unbatched `(8,)` action to multi-env simulation (the upstream code only auto-batches when `num_envs==1`); startup and warmup are not included in the advertised per-level timer; there is no enforced total wall-clock limit; the raw env is stepped beyond the 50-step episode horizon without a documented reset strategy; VRAM protection is too weak. See `docs/M2_INDEPENDENT_REVIEW.md`. **First approved candidate should instead be a 1-env, 3-step `physx_cuda` smoke ≤120s; no `tensorboard` is required for this smoke.** Fix and statically review the multi-env probe before seeking new approval for any larger sweep.
 > 日期 2026-10-21 · 上游 ManiSkill v3.0.1 `a4a4f9272ad64b1564035874b605ceb687b63ed8`
@@ -9,50 +15,81 @@
 
 ---
 
-## 0. 先决条件：三个依赖包（需批准，且与 GPU 无关）
+## 0. 先决条件：依赖与阶段解耦
 
 实测两个官方脚本在当前 venv 里**都无法 import**：
 
-| 包 | 谁需要 | 现状 |
-|---|---|---|
-| `tensorboard` | `ppo.py` 与 `ppo_fast.py` 都硬性 import | MISSING |
-| `tensordict` | 仅 `ppo_fast.py` | MISSING |
-| `wandb` | `ppo_fast.py` 顶层无条件 import；`ppo.py` 仅 `--track` 时导入 | MISSING |
+| 包 | 谁需要 | 现状 | A0 需要吗 |
+|---|---|---|---|
+| `tensorboard` | `ppo.py` 与 `ppo_fast.py` 都硬性 import | MISSING | **不需要** |
+| `tensordict` | 仅 `ppo_fast.py` | MISSING | **不需要** |
+| `wandb` | `ppo_fast.py` 顶层无条件 import；`ppo.py` 仅 `--track` 时导入 | MISSING | **不需要** |
 
-**建议**：Stage A 与 Stage B 只用 `ppo.py`，因此**只需装 `tensorboard`**。
-`tensordict` + `wandb` 留到确实要跑官方 `ppo_fast.py` 时再申请，避免无谓扩容。
+**修正（独立复核第 6 条）**：A0 只用到 `torch` / `gymnasium` / `mani_skill` / `sapien`，**一个包都不用装**。
+`tensorboard` 是 Stage B（真的跑 `ppo.py`）的前置，必须单独批准；`tensordict` + `wandb` 只属于 `ppo_fast.py`。
 
 ```bash
-# 需批准后才执行
+# 仅在批准 Stage B 后才执行；A0 不需要
 ./.venv-maniskill/bin/python -m pip install --no-cache-dir 'tensorboard>=2.16,<3'
 ```
 预估增量 200–400 MB（含 protobuf/grpcio 等），实际以安装后 `du` 为准。
 
+## 0.1 Stage A0 拟执行命令（待批准）
+
+```bash
+cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv
+timeout --signal=TERM --kill-after=10s 120 \
+  ./.venv-maniskill/bin/python scripts/m2_gpu_smoke_a0.py \
+    --env-id PickCube-v1 --robot panda --seed 0 --steps 3 \
+    --budget-seconds 100 --min-free-mib 3072 --abort-free-mib 1536 \
+    --output results/m2_gpu_smoke_a0.json 2>&1 | tee results/raw/m2_gpu_smoke_a0.log
+echo "exit=${PIPESTATUS[0]}"
+```
+
+通过判据、退出码含义与 A0 不能证明的事项：`docs/M2_GPU_PROBE_REPAIR.md` §3。
+
+
 ---
 
-## Stage A — GPU 仿真冒烟与吞吐探针（无策略、无优化器、无梯度）
+## Stage A — 已拆分为 A0（正确性）与 A1（吞吐）
 
-**目的**：回答"`physx_cuda` 在本机能不能建起来、4096 并行要多少显存、纯仿真 SPS 是多少"。
-**不回答**：训练速度、收敛、成功率。
+**已被否决的形态**：单脚本 64→4096 扫描 + `--max-seconds` 只覆盖计时循环。见 `docs/M2_INDEPENDENT_REVIEW.md`。
+
+### Stage A0 — 单环境 `physx_cuda` 冒烟（**这是下一步唯一应执行的 GPU 动作**）
+
+**目的**：回答"`physx_cuda` 在本机能不能建 1 个场景、reset、走 3 步"。
+**不回答**：吞吐、多环境显存、训练可跑性、收敛。
+完整规格与通过判据见 `docs/M2_GPU_PROBE_REPAIR.md` §3；命令见本文 §0.1。
 
 | 项目 | 设定 |
 |---|---|
-| 脚本 | `scripts/m2_gpu_sim_probe.py`（已写好，**未运行**） |
-| 环境 | `PickCube-v1` / `panda` / `state` / `pd_joint_delta_pos` / `normalized_dense` / `physx_cuda` |
-| 并行数 | **64 → 128 → 256 → 512 → 1024 → 2048 → 4096**（逐级，遇错即停） |
-| 每级预算 | warmup 20 步 + 计时 100 步，**单级实测墙钟 ≤ 60 s** |
-| 总墙钟上限 | **≤ 12 分钟**（含各级 setup；7 级 × ~90 s 的保守估计） |
-| 动作 | 零动作（与 M1 smoke 同策略，避免引入策略语义） |
-| 显存监控 | 每级记录 `torch.cuda.max_memory_allocated/reserved` + `nvidia-smi memory.free`（前后各一次） |
-| 显存下限 | **free < 500 MiB 即中止后续等级** |
-| 停止条件 | CUDA OOM / RuntimeError / `/dev/nvidia*` 消失 / 总时超 12 min / free < 500 MiB |
-| 产出 | `results/m2_gpu_sim_probe.json`（约 10 KB）+ stdout 日志到 `results/raw/` |
-| 不产出 | 无 checkpoint、无视频、无 tensorboard、无 replay buffer |
+| 脚本 | `scripts/m2_gpu_smoke_a0.py`（**已修复并通过静态检查，未运行**） |
+| 环境数 / 步数 | **1** / **恰好 3** 步零动作 |
+| 动作 | `torch.zeros((1, 8), device=cuda)`，显式断言形状 |
+| 后端 | `sim_backend="physx_cuda"`（显式；回读 `backend.sim_backend` 与 `gpu_sim_enabled` 校验） |
+| 时间 | 内部 100 s（monotonic + watchdog）/ 外部 `timeout 120` |
+| 显存 | 起跑需 free ≥ 3072 MiB；跌破 1536 MiB 即中止 |
+| 依赖 | **零新增**（不需要 `tensorboard`） |
+| 产出 | `results/m2_gpu_smoke_a0.json` + `results/raw/m2_gpu_smoke_a0.log` |
 
-**验收判据（用于决定 Stage B 的并行数）**：
-取"峰值显存 ≤ 6500 MiB 且 free ≥ 1000 MiB"的最大等级作为 Stage B 的 `num_envs` 候选，上限 1024。
+### Stage A1 — 并行吞吐探针（**未获授权**）
 
-> 说明：`render_mode=None`（探针脚本显式设置），而官方 `ppo.py` 用 `rgb_array`。两者的显存/SPS **不可直接等价**，报告里会分开写。
+| 项目 | 设定 |
+|---|---|
+| 脚本 | `scripts/m2_gpu_sim_probe.py`（**已重写，未运行**） |
+| 并行数 | **16 → 64 → 128 → 256**（512 需 `--allow-512`；>512 直接拒绝） |
+| 每级预算 | warmup 10 步 + 计时 100 步，**单级 ≤ 90 s**（含 build/reset/warmup/measure/cleanup） |
+| 总墙钟上限 | **≤ 600 s**（外加外部 `timeout`） |
+| 动作 | 零动作，形状 `(num_envs, 8)`，device=cuda |
+| 回合语义 | `ManiSkillVectorEnv(auto_reset=True)`，记录 terminated/truncated/auto_reset 计数 |
+| 显存 | 起始闸 3072 MiB、运行闸 1536 MiB、每 10 步设备级采样；torch 峰值只作下界 |
+| 产出 | `results/m2_gpu_sim_probe.json`（含 `scope_warning`） |
+
+**验收判据（决定 Stage B 的并行数）**：在"设备级 used 峰值 ≤ 6500 MiB 且 free ≥ 1000 MiB"的前提下，
+取能稳定跑完的最大等级作为 Stage B 的 `num_envs` 候选，上限 512。
+
+> `render_mode=None` 与官方 `ppo.py` 的 `rgb_array` 不可等价；A1 的 SPS 也不含前向/反向，不可外推为训练速度。
 
 ---
 
