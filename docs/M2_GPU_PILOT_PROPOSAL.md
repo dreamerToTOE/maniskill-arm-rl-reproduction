@@ -1,11 +1,12 @@
 # M2 GPU 运行报批 — 分阶段资源上限方案
 
-> 状态：**A0 PASSED (12/12) / A1 AUTHORIZED → BLOCKED（0 等级执行）/ STAGE B NOT APPROVED**
+> 状态：**A0 PASSED (12/12) / A1 PASSED (4/4, 27.706 s) / STAGE B NOT APPROVED**
 >
-> **2026-10-21 A1 轮：** 授权范围 16/64/128/256 已全部落地为代码，并拆成"每级一个独立进程 + 驱动器"，
-> 逐项对应 `docs/M2_A1_EXECUTION_REPORT.md` §2-§3。静态检查 51 + 82 项全过，fail-closed 路径两次实测
-> （剥 `PATH` → exit 8 / 0.049 s；驱动器 preflight → exit 8 / 0 等级）。**但 agent 会话仍无 GPU 设备节点，
-> 因此没有任何 SPS 或显存实测值**，执行命令见 §Stage A1。
+> **2026-10-21 A1 结果（实测）**：16/64/128/256 的聚合仿真 SPS = **905.8 / 3342.0 / 6437.4 / 11746.1**，
+> 扩展效率 1.000/0.922/0.888/0.811；设备级显存峰值 **3912 / 3867 / 3931 / 3931 MiB**，全程 free ≥ 4261 MiB。
+> **显存在 256 以内几乎不随并发增长**（边际 1.77 / 1.00 / 0.00 MiB per env，~1.3 GiB 场景是固定成本），
+> 所以本阶段的约束不是显存而是每步固定开销。torch 峰值仅 8.2–8.6 MiB（≈1/160，不能用来估 PhysX）。
+> 详见 `docs/M2_A1_EXECUTION_REPORT.md` §6-§7。**Stage B 建议 `num_envs=128`**（预登记规则取 256 再减半）。
 >
 > **2026-10-21 修复完成：** 原 Stage A 64→4096 扫描已被独立复核否决并冻结。修复后的方案拆成两个脚本，
 > 逐项修复见 `docs/M2_GPU_PROBE_REPAIR.md`，静态检查证据见 `results/raw/m2_static_checks.log`：
@@ -110,8 +111,10 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 策略/优化器状态，官方 fast 脚本还要 `rgb_array` 渲染）。若 16 级都过不了 headroom 判据，
 则本地 Stage B 不可行。
 
-> 当前状态：**`BLOCKED`** — 2026-10-21 16:09 agent 会话只有空的 `/dev/nvidia-caps`，驱动器
-> 在 preflight 退出 8，**执行了 0 个等级**。因此本文件与 A1 报告里没有任何 SPS/显存实测值。
+**判据结果（2026-10-21，四级全部满足）**：max = **256** → 减半 → **Stage B `num_envs = 128`**。
+
+> 当前状态：**PASS** — 2026-10-21 16:18 研究者终端执行，`verdict=PASS`、4/4 级、exit 0、27.706 s。
+> 五问结论见 `docs/M2_A1_EXECUTION_REPORT.md` §7；报告 §8 给出 `num_envs=128` 的**临时**预算。
 
 > `render_mode=None` 与官方 `ppo.py` 的 `rgb_array` 不可等价；A1 的 SPS 也不含前向/反向，不可外推为训练速度。
 
@@ -124,8 +127,8 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 | 项目 | 设定 |
 |---|---|
 | 脚本 | 上游 `ppo.py`（**不修改**），只通过命令行覆盖 |
-| 命令骨架 | `python ppo.py --env_id=PickCube-v1 --num_envs=<A 的结论> --num_steps=50 --update_epochs=4 --num_minibatches=32 --total_timesteps=256000 --seed=9351 --capture_video=False --track=False` |
-| 并行数 | 由 Stage A 决定，**上限 1024**（若 4096 也放得下，仍建议先用 1024 做管道测试） |
+| 命令骨架 | `python ppo.py --env_id=PickCube-v1 --num_envs=128 --num_steps=50 --update_epochs=4 --num_minibatches=32 --total_timesteps=256000 --seed=9351 --capture_video=False --track=False`（Tyro 布尔语法须先 `--help` 核对） |
+| 并行数 | **128**（A1 结论：256 达标后减半；显存余量充足，余量留给策略/优化器/渲染） |
 | 总步数上限 | **256,000**（`256000 // (num_envs×50)` 个 iteration，512 env 时为 10 个） |
 | 墙钟上限 | **≤ 20 分钟** |
 | 磁盘上限 | **≤ 300 MB**（tensorboard events + 2 个 `.pt`，每个约 2–3 MB） |
@@ -158,9 +161,10 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 ## 审批清单（请逐项勾选后再执行）
 
 - [ ] **A-1** 批准安装 `tensorboard`（约 200–400 MB）
-- [x] **A-2** 批准运行 Stage A1 探针（2026-10-21）：16/64/128/256、单级 ≤90 s、每级独立进程 + 外部 `timeout 150`、起始闸 3072 MiB、运行闸 1536 MiB、失败即停 —— **已授权，执行 `BLOCKED`（agent 会话无 GPU 设备节点），待研究者在终端执行**
-- [ ] **B-1** 批准 Stage B pilot：`ppo.py`、≤256k env steps、≤20 min、≤300 MB、无 wandb、无视频
-- [ ] **B-2** 指定 Stage B 的 `num_envs`（或授权按 A1 结论取"headroom 达标的最大值再减半"）
+- [x] **A-2** 批准运行 Stage A1 探针（2026-10-21）：16/64/128/256、单级 ≤90 s、每级独立进程 + 外部 `timeout 150`、起始闸 3072 MiB、运行闸 1536 MiB、失败即停 —— **已执行 `PASS`（4/4，exit 0，27.706 s），结论 `num_envs=128`**
+- [ ] **B-0** 安装 `tensorboard`（约 200–400 MB）并 `pip check` —— 尚未批准
+- [ ] **B-1** 批准 Stage B pilot：`ppo.py`、`num_envs=128`、≤256k env steps、≤20 min、≤300 MB、无 wandb、无视频
+- [ ] **B-2** 确认 `num_envs=128`（或改为 256；A1 显示显存足够，但 256 没有减半余量）
 - [ ] 确认不在本轮申请：官方 4096×50M 三 seed、`ppo_fast.py`（需 tensordict+wandb）、云 GPU、checkpoint 下载
 
 ---

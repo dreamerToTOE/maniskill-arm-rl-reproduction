@@ -1,27 +1,26 @@
 # M2 Stage A1 — GPU Parallel Simulation Benchmark
 
-> **Status: PREPARED / NOT EXECUTED — `BLOCKED` on agent-session GPU visibility.**
-> The harness, guards and evidence format are finished and statically verified, but
-> **no level was run and no simulation number in this document was measured.**
-> Stage A1 is `BLOCKED`, not `PASS`/`PARTIAL`/`FAIL`: `PASS`/`PARTIAL`/`FAIL` describe
-> an experiment that ran, and none did.
+> **Status: `PASS` — 4/4 levels OK, launcher exit 0, total wall clock 27.706 s.**
+> Executed 2026-10-21 16:18 in the researcher's GPU-visible terminal, after the agent
+> session refused with exit 8 at 16:09 (only an empty `/dev/nvidia-caps` there).
 >
-> Date: 2026-10-21 · Base commit: `148a0ea` (A0 PASSED 12/12)
-> Upstream pin: ManiSkill `v3.0.1` = `a4a4f9272ad64b1564035874b605ceb687b63ed8`
-> Binary pin: PyPI `mani-skill==3.0.1`, `sapien==3.0.0`, `torch==2.5.1+cu121`
-> Authorization: researcher approved A1 on 2026-10-21 (16→64→128→256, ≤256 only).
+> Base commit at execution: `cf1e698` · upstream pin ManiSkill `v3.0.1` =
+> `a4a4f9272ad64b1564035874b605ceb687b63ed8` · binary pin `mani-skill==3.0.1`,
+> `sapien==3.0.0`, `torch==2.5.1+cu121` · GPU RTX 3070 8192 MiB.
 
----
+**Headline numbers** (all measured, see §6):
 
-## 0. Why this document exists before the numbers
+| envs | aggregate sim SPS | device VRAM peak | free at peak | scaling efficiency |
+|---:|---:|---:|---:|---:|
+| 16 | 905.8 | 3912 MiB | 4280 MiB | 1.00 |
+| 64 | 3342.0 | 3867 MiB | 4325 MiB | 0.92 |
+| 128 | 6437.4 | 3931 MiB | 4261 MiB | 0.89 |
+| 256 | 11746.1 | 3931 MiB | 4261 MiB | 0.81 |
 
-Stage A1 was authorized and prepared, but the agent shell became GPU-blind again
-(§5). Rather than run four levels that would deterministically exit 8, the run was
-handed to the researcher's terminal with the exact commands in §6. This document
-therefore records: the frozen protocol, the guards that make it fail closed, the
-static evidence, the blocked-attempt evidence, and the exact analysis that will be
-applied to the numbers once they exist. **Every measurement field is marked
-`NOT_MEASURED` until §7 is filled in from a real run.**
+**The decisive finding is not the throughput: device VRAM is flat at ~3.9 GiB from 16
+to 256 envs.** The ~1.3 GiB GPU PhysX scene is a fixed cost, and 240 extra envs added
+**0 MiB** of *sampled* peak between 128 and 256. Memory is therefore not what limits
+this stage on an 8 GiB card — the per-step serialisation cost is.
 
 ---
 
@@ -35,15 +34,13 @@ applied to the numbers once they exist. **Every measurement field is marked
 | Termination/truncation/auto-reset counts across the 50-step horizon | Convergence, success rate, or any learning claim |
 
 `render_mode=None` is deliberate: the official `ppo_fast.py` PickCube path uses
-`render_mode="rgb_array"`, so its VRAM and SPS are **not** interchangeable with
-these numbers (recorded as unknown #9 in `docs/PROGRESS.md`).
-
-**Simulation SPS is not training SPS.** Any training-speed number derived from
-this table is an unverified extrapolation and must be labelled as such (§8).
+`render_mode="rgb_array"`, so its VRAM and SPS are **not** interchangeable with these
+numbers (unknown #9 in `docs/PROGRESS.md`). **Simulation SPS is not training SPS** — any
+training-speed number derived from this table is an unverified extrapolation (§8).
 
 ---
 
-## 2. Frozen protocol
+## 2. Frozen protocol (as executed)
 
 | Item | Value |
 |---|---|
@@ -51,53 +48,51 @@ this table is an unverified extrapolation and must be labelled as such (§8).
 | Observation | `state` (42-dim) |
 | Control | `pd_joint_delta_pos` (8-dim: arm 7 + gripper 1) |
 | Reward | `normalized_dense` (recorded, unused by zero actions) |
-| Backend | `physx_cuda` — pinned explicitly, re-read after construction |
+| Backend | `physx_cuda`, pinned explicitly, re-read after construction |
 | Render mode | `None` |
 | Seed | 0 on every level's `reset` |
 | Actions | all zeros, `(num_envs, 8)` float32 on `cuda:0` |
-| Levels | 16 → 64 → 128 → 256, strictly ascending, **512 and 4096 forbidden** |
+| Levels | 16 → 64 → 128 → 256, strictly ascending, 512/4096 never requested |
 | Warmup | 10 steps, discarded |
-| Measured | ≤100 steps (a level that does fewer is a failure) |
-| Per-level internal budget | 90 s (build + reset + warmup + measure + cleanup) |
-| Per-process internal budget | 120 s (import + build + steps + cleanup), monotonic + watchdog |
-| External per-level timeout | 150 s `timeout --signal=TERM --kill-after=10s` |
-| VRAM start gate | free ≥ 3072 MiB, else the level is not started |
-| VRAM abort gate | free < 1536 MiB, else the level aborts at the next sample |
-| VRAM sampling | every 10 steps, device level (`nvidia-smi`), sampling time subtracted |
+| Measured | 100 steps (all four levels reached exactly 100) |
+| Per-level internal budget | 90 s (used: 3.4–4.5 s) |
+| Per-process internal budget | 120 s (used: 5.7–6.8 s) |
+| External per-level timeout | 150 s `timeout --signal=TERM --kill-after=10s` (never hit) |
+| VRAM start gate | 3072 MiB free (baseline free was 4325–4420 MiB) |
+| VRAM abort gate | 1536 MiB (min free observed 4261 MiB — never approached) |
+| VRAM sampling | every 10 steps, device level, sampling time subtracted from `measure_s` |
 | Isolation | one OS process per level, one JSON + one log per level |
-| Retries | none — every record carries `attempts: 1` |
+| Retries | none |
 
-Episode semantics: `ManiSkillVectorEnv(auto_reset=True, ignore_terminations=False)`.
-With horizon 50 and 110 steps per level, truncation is guaranteed; a level that
-records **zero truncations** is a hard failure (`FAIL_NO_TRUNCATION`), because it
-means the episode boundary was never crossed and the rollout is not evidence of
-anything.
+Episode semantics: `ManiSkillVectorEnv(auto_reset=True, ignore_terminations=False)`,
+horizon 50 read from `TimeLimitWrapper` (`horizon_source=TimeLimitWrapper` on all four
+levels). 110 steps per level therefore crosses the boundary twice; truncations were
+observed on every level (32 / 128 / 256 / 512 env-truncations), which is the evidence
+that the auto-reset path is real rather than assumed.
 
 ---
 
-## 3. Guards, and the failure they prevent
+## 3. Guards that were exercised
 
-| # | Guard | Where | Prevents |
-|---|---|---|---|
-| 1 | Batched action `(n, 8)` built only via `batched_action_shape()` | `m2_gpu_sim_probe.py` | `(8,)` reaching the controller for n>1 (`sapien_env.py:1108` auto-batches only at n=1) |
-| 2 | `sim_backend="physx_cuda"` pinned + post-build `backend.sim_backend` / `gpu_sim_enabled` re-read | probe | `auto` silently resolving to `physx_cpu` at n=1 (`sapien_env.py:233-237`) |
-| 3 | Requested vs reported `num_envs` equality check | probe | a launcher/tyro mismatch silently measuring the wrong width |
-| 4 | Auto-reset counters + `FAIL_NO_TRUNCATION` | probe | stepping past the horizon with no reset policy, i.e. meaningless timing |
-| 5 | Mandatory telemetry, checked **before** `import torch` | probe | sizing a level blind; exit 8 with no scene built |
-| 6 | 3072 MiB start gate / 1536 MiB abort gate | probe | OOM on an 8 GiB card with a desktop attached |
-| 7 | Device counters authoritative, torch allocator recorded as a lower bound | probe | under-estimating PhysX by ~200× (A0: 8.2 MiB torch vs ~1.33 GiB device) |
-| 8 | Three nested time limits + launcher backstop | probe + launcher | a hung scene build eating the next level's budget |
-| 9 | One process per level | launcher | one crash/OOM/hard-kill destroying the other levels' records |
-| 10 | Stop on first non-OK level; remaining marked `NOT_RUN_AFTER_FAILURE` | launcher | a half-run sweep being reported as a complete one |
-| 11 | Pinned versions asserted at runtime (3.0.1/3.0.0/2.5.1) | probe | accidentally measuring a different stack |
-| 12 | No optimizer / tensorboard / tensordict / wandb import (AST-audited) | all three scripts | this stage drifting into training |
+| # | Guard | Evidence from this run |
+|---|---|---|
+| 1 | Batched action `(n, 8)` via `batched_action_shape()` | `action.shape` recorded as `[16,8] / [64,8] / [128,8] / [256,8]`, `cuda:0`, float32 |
+| 2 | `sim_backend="physx_cuda"` + post-build re-read | all four levels resolved `physx_cuda`, `gpu_sim_enabled=True` |
+| 3 | Requested vs reported `num_envs` | equal on all four |
+| 4 | Auto-reset counters + `FAIL_NO_TRUNCATION` | truncations present on all four; zero would have failed the level |
+| 5 | Telemetry before `import torch` | passed at startup; the 16:09 blocked run proves the refusal path |
+| 6 | 3072 / 1536 MiB gates | never triggered; closest approach 4261 MiB free |
+| 7 | Device counters authoritative | torch peak 8.2–8.6 MiB vs device ~1.29–1.43 GiB — a ~160× gap |
+| 8 | Nested time limits | longest level 4.5 s of a 90 s budget; no watchdog fire |
+| 9 | One process per level | 4 independent JSON + 4 logs, all present |
+| 10 | Stop on first failure | not triggered (all OK) |
+| 11 | Pinned versions asserted | 3.0.1 / 3.0.0 / 2.5.1+cu121, no mismatch |
+| 12 | No optimizer / tensorboard / tensordict / wandb | AST-audited; 51 audit checks green |
 
-Static evidence (2026-10-21, this commit):
-
-- `scripts/m2_static_audit.py --json results/m2_static_checks.json` → **51 checks passed, 0 failed** (A0 17 + A1 24 + launcher 10, including the gate-ordering check and the budget pins).
-- Self-tests, pure logic, no CUDA context: **A0 36 + A1 24 + launcher 22 = 82 checks, 0 failed**.
-- Fail-closed proof: with `PATH` stripped, the probe exits **8** in **0.049 s** with `levels: []` and `reason: "nvidia-smi not found on PATH"` — no scene, no CUDA context.
-- Launcher fail-closed proof: preflight blocked → verdict `BLOCKED`, four rows `NOT_RUN_PREFLIGHT_BLOCKED`, exit **8** (`results/raw/m2_a1_preflight_blocked.json`).
+Static gates re-run immediately before execution: 51 audit + 82 self-test checks, 0 failed
+(`results/m2_static_checks.json`). Fail-closed behaviour was proven twice before the real
+run (PATH stripped → exit 8 in 0.049 s; launcher preflight at 16:09 → `BLOCKED`, exit 8,
+zero levels).
 
 ---
 
@@ -105,182 +100,205 @@ Static evidence (2026-10-21, this commit):
 
 | Path | Content | Committed |
 |---|---|---|
-| `results/m2_a1_benchmark_summary.json` | aggregate: 4 rows + derived scaling + verdict | yes (currently `BLOCKED`) |
-| `results/raw/m2_a1_n{16,64,128,256}.json` | per-level full evidence | no (`results/raw/` is gitignored) |
+| `results/m2_a1_benchmark_summary.json` | all four rows + derived scaling + verdict | yes |
+| `results/raw/m2_a1_n{16,64,128,256}.json` | per-level full evidence (~6.1 KB each) | no (`results/raw/` gitignored) |
 | `results/raw/m2_a1_n{16,64,128,256}.log` | per-level stdout/stderr + argv + exit code | no |
+| `results/raw/m2_a1_launcher.log` | launcher transcript | no |
 | `docs/M2_A1_EXECUTION_REPORT.md` | this document | yes |
-| `results/m2_static_checks.json` | static audit summary | yes |
 
-Because `results/raw/` is gitignored, the aggregate summary **embeds the full
-per-level measurement set** for every level that ran, so the committed artifact is
-self-sufficient for audit.
+The committed summary embeds the complete per-level measurement set, so it is
+self-sufficient for audit even though the raw directory is ignored.
 
 ---
 
-## 5. Why it did not run here (evidence)
+## 5. Execution history (both attempts)
 
-Read-only snapshot, full log in `results/raw/m2_a1_gpu_unavailable_diag.log`:
+| Time | Where | Result |
+|---|---|---|
+| 16:09 | agent session | `BLOCKED`, exit 8, 0 levels — only an empty `/dev/nvidia-caps`, `nvidia-smi` rc=9, `torch.cuda.device_count()=0`. Nothing built. |
+| 16:18 | researcher's terminal | **`PASS`, exit 0, 4/4 levels, 27.706 s** |
 
-| Probe | Result |
-|---|---|
-| `ls -l /dev/nvidia*` | only `/dev/nvidia-caps` (an **empty directory**); no `/dev/nvidia0`, `nvidiactl`, `nvidia-uvm`, `nvidia-uvm-tools` |
-| `nvidia-smi --query-gpu=...` | rc=9, "couldn't communicate with the NVIDIA driver" |
-| `/proc/driver/nvidia/version` | `NVRM 580.178.04` — module loaded |
-| `lspci` | `01:00.0 GA104 [GeForce RTX 3070 LHR]` — card present |
-| venv torch | `2.5.1+cu121`, `is_available False`, `device_count 0` |
-| launcher preflight | `telemetry_verdict=UNAVAILABLE`, `blocked=true`, driver exit **8** |
+Command (verbatim):
 
-This is the same session-scoped namespace issue documented in
-`docs/M2_GPU_PROBE_REPAIR.md` §7.3 and `docs/PROGRESS.md` unknown #12: the machine
-and driver are healthy (A0 passed in the researcher's terminal at 15:44 on the same
-host), the *agent session* has no NVIDIA character devices. No driver, permission,
-CUDA or container change was attempted.
+```bash
+cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+./.venv-maniskill/bin/python scripts/m2_a1_run_all.py 2>&1 | tee results/raw/m2_a1_launcher.log
+echo "exit=${PIPESTATUS[0]}"
+```
 
-At 15:44 the researcher's terminal reported free VRAM 5592–5654 MiB, so the
-3072 MiB start gate is satisfiable there. That is context, **not** a measurement
+The launcher expanded it into four `timeout --signal=TERM --kill-after=10s 150 …` children,
+one per env count, in ascending order.
+
+---
+
+## 6. Measurements — the 12 required fields
+
+| # | Field | 16 | 64 | 128 | 256 |
+|---|---|---:|---:|---:|---:|
+| 1 | Environments (`num_envs`) | 16 | 64 | 128 | 256 |
+| 2 | Initialisation (`build_s`) | 1.169 s | 1.292 s | 1.439 s | 1.712 s |
+| 3 | Warmup, 10 steps (`warmup_s`) | 0.209 s | 0.207 s | 0.212 s | 0.235 s |
+| 4 | Measured simulation (`measure_s`) | 1.766 s | 1.915 s | 1.988 s | 2.179 s |
+| 5 | **Aggregate simulation SPS** | **905.8** | **3342.0** | **6437.4** | **11746.1** |
+| 6 | Device used before init | 2224 MiB | 2133 MiB | 2133 MiB | 2133 MiB |
+| 7 | **Device used peak** (sampled) | **3912 MiB** | **3867 MiB** | **3931 MiB** | **3931 MiB** |
+| 8 | Free VRAM at peak | 4280 MiB | 4325 MiB | 4261 MiB | 4261 MiB |
+| 9 | Increase vs baseline | +1276 MiB | +1361 MiB | +1425 MiB | +1425 MiB |
+| 10 | Terminated / truncated / auto-reset (env-level) | 0 / 32 / 32 | 1 / 128 / 129 | 1 / 256 / 257 | 3 / 512 / 515 |
+| 11 | Errors / warnings | none / none | none / none | none / none | none / none |
+| 12 | Exit code / status | 0 / OK | 0 / OK | 0 / OK | 0 / OK |
+| — | Total experiment wall clock | | | | **27.706 s** |
+
+Supporting per-level detail:
+
+| n | import_s | reset_s | steps done | env-steps | ms per `env.step` | SPS/env | process wall |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 16 | 2.213 | 0.014 | 100 | 1600 | 17.665 | 56.61 | 5.736 s |
+| 64 | 2.218 | 0.024 | 100 | 6400 | 19.150 | 52.22 | 6.180 s |
+| 128 | 2.190 | 0.036 | 100 | 12800 | 19.884 | 50.29 | 6.228 s |
+| 256 | 2.210 | 0.060 | 100 | 25600 | 21.794 | 45.88 | 6.756 s |
+
+`torch_peak_alloc`: 8.2 / 8.3 / 8.4 / 8.6 MiB; `torch_peak_reserved`: 22.0 MiB on all
+four. Recorded as a **torch-only lower bound** — it is ~160× below the device view and
+must never be used to size PhysX.
+
+---
+
+## 7. Analysis
+
+### 7.1 Throughput scaling — near-linear, with mild and predictable decay
+
+| n | SPS | speedup vs 16 | ideal speedup | efficiency | marginal SPS per added env |
+|---:|---:|---:|---:|---:|---:|
+| 16 | 905.8 | 1.000 | 1.0 | 1.000 | — |
+| 64 | 3342.0 | 3.689 | 4.0 | 0.922 | 50.8 |
+| 128 | 6437.4 | 7.107 | 8.0 | 0.888 | 48.4 |
+| 256 | 11746.1 | 12.968 | 16.0 | 0.811 | 41.5 |
+
+- 16× the environments buys **12.97×** the throughput, i.e. 81 % efficiency.
+- Efficiency decays monotonically **0.922 → 0.888 → 0.811**, and marginal SPS per added
+  env drops **50.8 → 48.4 → 41.5** (−18 %). This is the signature of a fixed per-step
+  cost (kernel launches, buffer copies, Python/torch dispatch) paid once per `env.step`
+  regardless of width.
+- The cleanest statement of it: one `env.step` covering **all** envs takes 17.7 ms at
+  n=16 but only 21.8 ms at n=256 — 16× the work for 1.23× the wall time.
+- **No cliff** in the tested range: the last doubling still delivered 1.82×.
+
+### 7.2 VRAM scaling — the fixed scene dominates, not the env count
+
+| n | used after build | used peak (sampled) | Δ vs idle | marginal Δ per added env |
+|---:|---:|---:|---:|---:|
+| 16 | 3548 MiB | 3912 MiB | +1276 MiB | — |
+| 64 | 3492 MiB | 3867 MiB | +1361 MiB | 1.77 MiB |
+| 128 | 3556 MiB | 3931 MiB | +1425 MiB | 1.00 MiB |
+| 256 | 3556 MiB | 3931 MiB | +1425 MiB | **0.00 MiB** |
+
+- The GPU PhysX scene costs **~1.28–1.43 GiB regardless of env count** — consistent with
+  the A0 single-env measurement (~1.33 GiB). Up to 256 envs, width is nearly free in VRAM.
+- Idle baseline moved 2224 → 2133 MiB between levels (desktop noise), which is why deltas
+  and free floors are reported instead of absolute used values.
+- Worst-point headroom is **4261 MiB free** — 2.8× the 1536 MiB abort gate. VRAM is
+  **not** the binding constraint for this stage.
+
+**Caveat, stated plainly:** the peak is a *sampled* value (every 10 steps), so a transient
+spike between samples would be missed, and "128 and 256 identical" means "no sustained
+growth at 100-step / sample-10 resolution", not "provably identical allocation". A 0 MiB
+marginal cost is plausible for PhysX pre-allocated buffer pools but is **not** proven here.
+
+### 7.3 Is memory stable?
+
+Yes, over the measured window: 10 samples per level, minimum free memory never left the
+4261–4325 MiB band, no downward drift across samples, no allocator warnings. A 100-step
+window (≈2.2 s) cannot detect a multi-minute leak; that is outside this stage.
+
+### 7.4 Diminishing returns?
+
+Present but mild **in throughput**, absent **in memory**:
+
+- Throughput: 81 % efficiency at 256, with a monotone decay that suggests a further drop
+  at 512 (extrapolation — **not measured**, and 512 was never authorized).
+- Memory: no measurable return to gain beyond 128 envs.
+
+Practical reading: throughput per VRAM byte peaks at 256; throughput per unit of per-step
+latency is already 89 % saturated at 128.
+
+### 7.5 Which configuration suits a short training pilot?
+
+Applying the rule **pre-registered before the run** (largest n with peak ≤ 6500 MiB,
+free_min ≥ 1000 MiB, efficiency ≥ 0.5, no warnings — then halve it for the first pilot):
+
+| Criterion | 16 | 64 | 128 | 256 |
+|---|---|---|---|---|
+| peak ≤ 6500 MiB | pass | pass | pass | pass |
+| free_min ≥ 1000 MiB | pass | pass | pass | pass |
+| efficiency ≥ 0.5 | pass | pass | pass | pass |
+| no warnings/errors | pass | pass | pass | pass |
+
+→ largest qualifying = **256**, halved = **128** for the first training pilot.
+
+### 7.6 One observation that needs care
+
+Zero actions terminated **1 / 1 / 3** env-episodes (at 64 / 128 / 256; none at 16), always
+as `terminated`, never with a warning. With a static robot and no action, the only
+plausible route to `terminated` in PickCube is a randomised initial object pose that
+already satisfies `is_obj_placed & is_robot_static`. That reading is **unverified** — the
+run recorded counts, not per-env causes. It affects nothing in the SPS/VRAM numbers
+(3 events in 28,160 env-steps ≈ 0.01 %), but it is a reason not to read a success rate out
 of this stage.
 
 ---
 
-## 6. Exact commands (researcher's GPU-visible terminal)
+## 8. Stage B recommendation and provisional budget
 
-Everything below runs in one shell; the launcher spawns one isolated process per
-level and stops at the first failure.
+**Recommended `num_envs` for the Stage B pilot: 128.**
 
-```bash
-cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+Why 128 and not 256: the halving is the pre-registered safety rule, and it buys margin for
+three costs A1 does not pay — policy + optimizer state, GAE/update buffers, and rendering
+if the pilot path enables `rgb_array`. It costs 1.8× throughput (6437 vs 11746 SPS)
+against a 20-minute budget that is nowhere near binding. If the pilot later shows both
+VRAM and per-iteration time are far from limits, 256 is the natural second step — as a new
+authorization, not a silent change.
 
-# 0) read-only preflight: is the GPU visible *in this terminal*?
-nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu \
-  --format=csv,noheader,nounits
-ls -l /dev/nvidia* | head
-echo "---"
+Provisional resource budget (**PROVISIONAL / unverified** where marked):
 
-# 1) static gates (no CUDA context, ~2 s)
-./.venv-maniskill/bin/python scripts/m2_gpu_sim_probe.py --self-test
-./.venv-maniskill/bin/python scripts/m2_a1_run_all.py --self-test
-./.venv-maniskill/bin/python scripts/m2_static_audit.py --json results/m2_static_checks.json
+| Item | Estimate | Basis |
+|---|---|---|
+| Env steps | 256,000 | approved pilot ceiling, unchanged |
+| Envs × steps | 128 × 50 = 6,400 / iteration | — |
+| Iterations | 40 | 256,000 / 6,400 |
+| Pure-sim floor | 256,000 / 6437 SPS ≈ **40 s** | measured simulator SPS at 128; a **lower bound on wall time**, since training adds work |
+| Realistic end-to-end | **1.5–7 min** | PROVISIONAL: assumes end-to-end SPS is 10–50 % of simulator SPS (640–3200 SPS); **not measured** |
+| VRAM | scene ~1.43 GiB + policy/optimizer (≈0.29 M params) + activations for a 6,400-sample batch | scene measured; PyTorch side **unmeasured** |
+| Risk | VRAM, not time | peak 3931 MiB of 8192 MiB leaves 4261 MiB, but rendering would change that |
 
-# 2) show the four per-level commands without touching the GPU
-./.venv-maniskill/bin/python scripts/m2_a1_run_all.py --dry-run
-
-# 3) the authorized benchmark: 16 -> 64 -> 128 -> 256, one process each,
-#    90 s internal per level, 150 s external per level, stop on first failure
-mkdir -p results/raw
-./.venv-maniskill/bin/python scripts/m2_a1_run_all.py 2>&1 | tee results/raw/m2_a1_launcher.log
-echo "launcher_exit=${PIPESTATUS[0]}"
-```
-
-Expected exit codes from the launcher: `0` PASS (all four), `1` PARTIAL (some
-levels OK, then a stop), `2` FAIL (first level failed), `8` BLOCKED (no telemetry).
-Per-level exit codes from the probe: `0` OK, `2` backend mismatch, `3` VRAM gate,
-`4` budget, `5` OOM/error, `7` version, `8` no telemetry, `9` level-level assertion
-(incomplete measurement, or zero truncations at n≥2 steps beyond the horizon).
-
-A single level can be re-run on request (this is a *new* authorized action, not an
-automatic retry):
-
-```bash
-timeout --signal=TERM --kill-after=10s 150 \
-  ./.venv-maniskill/bin/python scripts/m2_gpu_sim_probe.py \
-    --env-counts 64 --warmup-steps 10 --steps 100 \
-    --level-seconds 90 --total-seconds 120 --external-limit-s 150 \
-    --min-free-mib 3072 --abort-free-mib 1536 --vram-every 10 \
-    --output results/raw/m2_a1_n64.json 2>&1 | tee results/raw/m2_a1_n64.log
-```
-
-Total external ceiling for the whole sweep: 4 × 150 s = **600 s**, plus overhead.
+`sps_end_to_end` is **unknown**; dividing 256,000 by it is the only honest arithmetic
+available, and it must be replaced by a measured number the moment the pilot runs.
 
 ---
 
-## 7. Measurements
+## 9. Limitations
 
-### 7.1 Required table — **NOT_MEASURED**
-
-No row below exists yet. The field list is fixed now so the numbers cannot be
-cherry-picked afterwards.
-
-| # | Field | JSON key | 16 | 64 | 128 | 256 |
-|---|---|---|---|---|---|---|
-| 1 | Environments | `num_envs` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 2 | Initialisation time | `init_s` (`build_s`) | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 3 | Warmup time | `warmup_s` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 4 | Measured simulation time | `measure_s` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 5 | Aggregate simulation SPS | `sim_sps` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 6 | VRAM before init | `device_used_baseline_mib` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 7 | Peak VRAM during execution | `device_used_peak_mib` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 8 | Remaining free VRAM | `vram_free_min_mib` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 9 | Increase vs baseline | `device_used_increase_mib` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 10 | Terminated / truncated / auto-reset | `counters_total` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 11 | Errors / warnings | `error`, `warnings` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| 12 | Exit code / status | `exit_code`, `status` | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED | NOT_MEASURED |
-| — | Total experiment wall clock | `total_wall_clock_s` | NOT_MEASURED | | | |
-
-The single hard anchor available today is A0 (1 env, 3 steps): device used
-2227→3591 MiB, i.e. **~1.33 GiB for one GPU scene**, with a torch allocator peak of
-8.2 MiB. It is a 1-env reference point, **not** a row of this table.
-
-### 7.2 Analysis that will be applied (fixed in advance)
-
-- **Throughput scaling**: `speedup(n) = SPS(n)/SPS(16)`.
-- **Scaling efficiency**: `eff(n) = speedup(n)/(n/16)`. `eff < 1` ⇒ per-step
-  overhead grows with width (diminishing returns); `eff ≈ 1` ⇒ near-linear.
-- **Marginal gain**: `ΔSPS/Δn` between adjacent levels; the level where it
-  collapses bounds the useful width on this card.
-- **VRAM scaling**: report both `Δused(16)` (fixed scene cost + 16 envs) and the
-  incremental `(Δused(n) − Δused(16))/(n − 16)`, because the first level carries
-  the fixed PhysX context and must not be used as a per-env slope.
-- **Stability**: whether `vram_free_min_mib` stays above the 1536 MiB abort floor
-  with margin, and whether free memory drifts across samples (leak signature).
-- **Stage B width rule** (pre-registered): choose the largest n with
-  `device_used_peak_mib ≤ 6500`, `vram_free_min_mib ≥ 1000`, `eff ≥ 0.5`, and no
-  error/warning; then **halve it** for the first PPO pilot because the training
-  path also allocates policy/optimizer state and (for the fast script) rendering.
-  If 16 itself fails the headroom rule, Stage B is not viable locally.
-
----
-
-## 8. Provisional Stage B budget (unverified, formula only)
-
-`sps` below is a placeholder, **not** a measurement. With the pre-registered
-256k-step pilot (`docs/M2_GPU_PILOT_PROPOSAL.md` §Stage B):
-
-`wall = 256,000 / SPS_end_to_end`, and `SPS_end_to_end < SPS_sim` by an unknown
-factor because gradients, GAE and evaluation are absent from A1.
-
-| Assumed end-to-end SPS | 256k steps |
-|---:|---:|
-| 1,000 | 4.3 min |
-| 3,000 | 1.4 min |
-| 6,000 | 0.7 min |
-
-Even the slowest case fits the 20-minute pilot budget *if* the simulation rate
-holds; the real risk is VRAM, not time. **No Stage B number may be quoted until
-that pilot runs.** All of this is `PROVISIONAL`.
-
----
-
-## 9. Limitations and honest status
-
-1. **Nothing in §7 was measured.** A1 is `BLOCKED`, not passed.
-2. Four levels × 100 steps is a **short-window** measurement: it does not capture
-   thermal throttling, allocator fragmentation over minutes, or multi-minute leak
-   behaviour.
-3. `render_mode=None` under-reports the memory of the official fast baseline.
-4. Zero actions produce a near-static scene; contact-rich states may allocate and
-   compute differently. SPS here is an upper bound for this task, not a guarantee.
-5. The 8 GiB card is shared with a desktop session; the baseline `memory.used`
-   varies run to run, which is why deltas and free-memory floors are reported
-   instead of absolute used values.
-6. Only 4 of the 6 authorized protection points are exercised end-to-end here
-   (telemetry gate, VRAM gates, budgets, and the launcher's stop-on-failure are
-   all proven; the OOM path and the backend-mismatch path are code-level only).
+1. **100-step window** (~2.2 s per level): no thermal throttling, no multi-minute leak, no
+   allocator fragmentation over time. These are steady-state *samples*, not a soak test.
+2. **Zero actions**: near-static scenes. Contact-rich trajectories may cost differently;
+   treat these SPS as a **best case** for this task.
+3. **`render_mode=None`**: the official fast baseline renders, so its memory and speed are
+   not comparable with this table.
+4. **Sampled peak**: 10-step granularity, so short spikes are invisible (§7.2 caveat).
+5. **Four points, one seed, one repetition**: `reset(seed=0)` is deterministic per level,
+   but GPU timing still varies by a few percent run to run; the efficiency numbers carry
+   roughly ±3 % noise, not a confidence interval.
+6. **The desktop was not idle**: baseline used memory drifted 2224 → 2133 MiB and the card
+   is shared with a desktop session. Absolute memory numbers are not portable to another
+   machine; the deltas and the free floor are.
+7. **No claim about 512 or 4096** — never run; the launcher refuses > 256.
 
 ## 10. Next actions
 
-1. Researcher runs §6 in a GPU-visible terminal (A0 already proved `physx_cuda`
-   works there at 15:44 on this host).
-2. This document's §7.1 is filled from `results/m2_a1_benchmark_summary.json`,
-   the Stage B width is selected by the §7.2 rule, and the verdict is set to
-   `PASS` / `PARTIAL` / `FAIL` **only then**.
-3. Stage B stays unapproved until that happens; `tensorboard` stays uninstalled.
+1. Stage B needs a **separate approval**: install `tensorboard` in the isolated venv
+   (~200–400 MB, `pip check` after), then run upstream `ppo.py` unmodified with
+   `num_envs=128`, ≤256k env steps, ≤20 min, ≤300 MB, no wandb, no video.
+2. Nothing in this stage may be reported as a baseline reproduction or as training
+   throughput.
+3. If the pilot's measured end-to-end SPS makes three-seed PickCube exceed ~2 days, only
+   then does a 24 GB cloud card become a discussion (still requiring approval).

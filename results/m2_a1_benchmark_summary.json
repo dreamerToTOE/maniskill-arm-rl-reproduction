@@ -1,11 +1,9 @@
 {
   "kind": "m2_a1_benchmark_summary",
   "stage": "A1",
-  "verdict": "BLOCKED",
-  "levels_executed": 0,
-  "notes": [
-    "verdict BLOCKED: device-level VRAM telemetry was unavailable, so no level was spawned. This file documents a refused attempt, not a benchmark. Rerunning the launcher overwrites it."
-  ],
+  "verdict": "PASS",
+  "levels_executed": 4,
+  "notes": [],
   "scope_warning": "SIMULATOR steps/second only (zero actions, render_mode=None, no policy, no gradients). This is NOT training throughput, NOT a reproduction of the official baseline, and must not be compared with published numbers.",
   "config": {
     "env_id": "PickCube-v1",
@@ -35,82 +33,565 @@
     "dependencies_installed": false
   },
   "preflight": {
-    "telemetry_verdict": "UNAVAILABLE",
-    "telemetry_reason": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.",
+    "telemetry_verdict": "AVAILABLE",
+    "telemetry_reason": "memory.free=5614 MiB",
     "device_nodes": {
       "present": true,
       "nodes": [
-        "/dev/nvidia-caps"
+        "/dev/nvidia-modeset",
+        "/dev/nvidia-uvm",
+        "/dev/nvidia-uvm-tools",
+        "/dev/nvidia0",
+        "/dev/nvidiactl"
       ]
     },
-    "gpu": null,
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 3070",
+      "driver_version": "580.178.04",
+      "memory.total": 8192,
+      "memory.used": 2205,
+      "memory.free": 5614,
+      "utilization.gpu": 14
+    },
     "diagnostics": {
       "binary": "/usr/bin/nvidia-smi",
-      "returncode": 9,
-      "stderr_head": [
-        "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
-      ],
+      "returncode": 0,
+      "stderr_head": null,
       "exception": null,
       "command": "/usr/bin/nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader,nounits"
     },
-    "other_compute_apps": [],
-    "blocked": true
+    "other_compute_apps": [
+      {
+        "pid": "2580",
+        "process": "/usr/libexec/gnome-remote-desktop-daemon",
+        "used_mib": 157
+      }
+    ],
+    "blocked": false
   },
   "rows": [
     {
       "num_envs": 16,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "exit_code": null,
+      "status": "OK",
+      "exit_code": 0,
       "attempts": 1,
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+      "init_s": 1.169,
+      "import_s": 2.213,
+      "reset_s": 0.014,
+      "level_elapsed_s": 3.438,
+      "process_elapsed_s": 5.736,
+      "warmup_s": 0.209,
+      "warmup_steps_done": 10,
+      "measure_s": 1.766,
+      "measure_steps_done": 100,
+      "total_env_steps": 1600,
+      "sim_sps": 905.8,
+      "sim_steps_per_s": 56.61,
+      "ms_per_sim_step": 17.665,
+      "device_used_baseline_mib": 2224,
+      "device_used_peak_mib": 3912,
+      "device_used_after_build_mib": 3548,
+      "vram_free_min_mib": 4280,
+      "vram_free_after_mib": 4319,
+      "device_used_increase_mib": 1276,
+      "device_total_mib": 8192,
+      "headroom_min_mib": 4280,
+      "torch_peak_alloc_mib": 8.2,
+      "torch_peak_reserved_mib": 22.0,
+      "counters_total": {
+        "terminated_steps": 0,
+        "terminated_envs": 0,
+        "truncated_steps": 2,
+        "truncated_envs": 32,
+        "auto_reset_steps": 2,
+        "auto_reset_envs": 32
+      },
+      "counters_warmup": {
+        "terminated_steps": 0,
+        "terminated_envs": 0,
+        "truncated_steps": 0,
+        "truncated_envs": 0,
+        "auto_reset_steps": 0,
+        "auto_reset_envs": 0
+      },
+      "counters_measure": {
+        "terminated_steps": 0,
+        "terminated_envs": 0,
+        "truncated_steps": 2,
+        "truncated_envs": 32,
+        "auto_reset_steps": 2,
+        "auto_reset_envs": 32
+      },
+      "truncation_observed": true,
+      "warnings": [],
+      "error": null,
+      "backend": {
+        "requested": "physx_cuda",
+        "resolved": "physx_cuda",
+        "gpu_sim_enabled": true,
+        "num_envs": 16
+      },
+      "max_episode_steps": 50,
+      "horizon_source": "TimeLimitWrapper",
+      "action": {
+        "shape": [
+          16,
+          8
+        ],
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "values": "all zeros"
+      },
+      "vram_verdict": "OK",
+      "vram_free_samples": [
+        {
+          "step": 10,
+          "free_mib": 4280
+        },
+        {
+          "step": 10,
+          "free_mib": 4280
+        },
+        {
+          "step": 20,
+          "free_mib": 4280
+        },
+        {
+          "step": 30,
+          "free_mib": 4280
+        },
+        {
+          "step": 40,
+          "free_mib": 4280
+        },
+        {
+          "step": 50,
+          "free_mib": 4303
+        },
+        {
+          "step": 60,
+          "free_mib": 4303
+        },
+        {
+          "step": 70,
+          "free_mib": 4303
+        },
+        {
+          "step": 80,
+          "free_mib": 4303
+        },
+        {
+          "step": 90,
+          "free_mib": 4303
+        },
+        {
+          "step": 100,
+          "free_mib": 4319
+        }
+      ],
+      "child_wall_s": 6.416,
+      "external_timeout_hit": false,
+      "log": "results/raw/m2_a1_n16.log",
+      "raw_json": "results/raw/m2_a1_n16.json",
+      "speedup_vs_base": 1.0,
+      "scaling_efficiency": 1.0,
+      "sps_per_env": 56.61,
+      "vram_mib_per_env": 79.8
     },
     {
       "num_envs": 64,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "exit_code": null,
+      "status": "OK",
+      "exit_code": 0,
       "attempts": 1,
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+      "init_s": 1.292,
+      "import_s": 2.218,
+      "reset_s": 0.024,
+      "level_elapsed_s": 3.715,
+      "process_elapsed_s": 6.18,
+      "warmup_s": 0.207,
+      "warmup_steps_done": 10,
+      "measure_s": 1.915,
+      "measure_steps_done": 100,
+      "total_env_steps": 6400,
+      "sim_sps": 3342.0,
+      "sim_steps_per_s": 52.22,
+      "ms_per_sim_step": 19.15,
+      "device_used_baseline_mib": 2133,
+      "device_used_peak_mib": 3867,
+      "device_used_after_build_mib": 3492,
+      "vram_free_min_mib": 4325,
+      "vram_free_after_mib": 4325,
+      "device_used_increase_mib": 1361,
+      "device_total_mib": 8192,
+      "headroom_min_mib": 4325,
+      "torch_peak_alloc_mib": 8.3,
+      "torch_peak_reserved_mib": 22.0,
+      "counters_total": {
+        "terminated_steps": 1,
+        "terminated_envs": 1,
+        "truncated_steps": 4,
+        "truncated_envs": 128,
+        "auto_reset_steps": 5,
+        "auto_reset_envs": 129
+      },
+      "counters_warmup": {
+        "terminated_steps": 1,
+        "terminated_envs": 1,
+        "truncated_steps": 0,
+        "truncated_envs": 0,
+        "auto_reset_steps": 1,
+        "auto_reset_envs": 1
+      },
+      "counters_measure": {
+        "terminated_steps": 0,
+        "terminated_envs": 0,
+        "truncated_steps": 4,
+        "truncated_envs": 128,
+        "auto_reset_steps": 4,
+        "auto_reset_envs": 128
+      },
+      "truncation_observed": true,
+      "warnings": [],
+      "error": null,
+      "backend": {
+        "requested": "physx_cuda",
+        "resolved": "physx_cuda",
+        "gpu_sim_enabled": true,
+        "num_envs": 64
+      },
+      "max_episode_steps": 50,
+      "horizon_source": "TimeLimitWrapper",
+      "action": {
+        "shape": [
+          64,
+          8
+        ],
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "values": "all zeros"
+      },
+      "vram_verdict": "OK",
+      "vram_free_samples": [
+        {
+          "step": 10,
+          "free_mib": 4325
+        },
+        {
+          "step": 10,
+          "free_mib": 4325
+        },
+        {
+          "step": 20,
+          "free_mib": 4325
+        },
+        {
+          "step": 30,
+          "free_mib": 4325
+        },
+        {
+          "step": 40,
+          "free_mib": 4325
+        },
+        {
+          "step": 50,
+          "free_mib": 4325
+        },
+        {
+          "step": 60,
+          "free_mib": 4325
+        },
+        {
+          "step": 70,
+          "free_mib": 4325
+        },
+        {
+          "step": 80,
+          "free_mib": 4325
+        },
+        {
+          "step": 90,
+          "free_mib": 4325
+        },
+        {
+          "step": 100,
+          "free_mib": 4325
+        }
+      ],
+      "child_wall_s": 6.844,
+      "external_timeout_hit": false,
+      "log": "results/raw/m2_a1_n64.log",
+      "raw_json": "results/raw/m2_a1_n64.json",
+      "speedup_vs_base": 3.69,
+      "scaling_efficiency": 0.9224,
+      "sps_per_env": 52.22,
+      "vram_mib_per_env": 21.3
     },
     {
       "num_envs": 128,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "exit_code": null,
+      "status": "OK",
+      "exit_code": 0,
       "attempts": 1,
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+      "init_s": 1.439,
+      "import_s": 2.19,
+      "reset_s": 0.036,
+      "level_elapsed_s": 3.956,
+      "process_elapsed_s": 6.228,
+      "warmup_s": 0.212,
+      "warmup_steps_done": 10,
+      "measure_s": 1.988,
+      "measure_steps_done": 100,
+      "total_env_steps": 12800,
+      "sim_sps": 6437.4,
+      "sim_steps_per_s": 50.29,
+      "ms_per_sim_step": 19.884,
+      "device_used_baseline_mib": 2133,
+      "device_used_peak_mib": 3931,
+      "device_used_after_build_mib": 3556,
+      "vram_free_min_mib": 4261,
+      "vram_free_after_mib": 4261,
+      "device_used_increase_mib": 1425,
+      "device_total_mib": 8192,
+      "headroom_min_mib": 4261,
+      "torch_peak_alloc_mib": 8.4,
+      "torch_peak_reserved_mib": 22.0,
+      "counters_total": {
+        "terminated_steps": 1,
+        "terminated_envs": 1,
+        "truncated_steps": 4,
+        "truncated_envs": 256,
+        "auto_reset_steps": 5,
+        "auto_reset_envs": 257
+      },
+      "counters_warmup": {
+        "terminated_steps": 1,
+        "terminated_envs": 1,
+        "truncated_steps": 0,
+        "truncated_envs": 0,
+        "auto_reset_steps": 1,
+        "auto_reset_envs": 1
+      },
+      "counters_measure": {
+        "terminated_steps": 0,
+        "terminated_envs": 0,
+        "truncated_steps": 4,
+        "truncated_envs": 256,
+        "auto_reset_steps": 4,
+        "auto_reset_envs": 256
+      },
+      "truncation_observed": true,
+      "warnings": [],
+      "error": null,
+      "backend": {
+        "requested": "physx_cuda",
+        "resolved": "physx_cuda",
+        "gpu_sim_enabled": true,
+        "num_envs": 128
+      },
+      "max_episode_steps": 50,
+      "horizon_source": "TimeLimitWrapper",
+      "action": {
+        "shape": [
+          128,
+          8
+        ],
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "values": "all zeros"
+      },
+      "vram_verdict": "OK",
+      "vram_free_samples": [
+        {
+          "step": 10,
+          "free_mib": 4261
+        },
+        {
+          "step": 10,
+          "free_mib": 4261
+        },
+        {
+          "step": 20,
+          "free_mib": 4261
+        },
+        {
+          "step": 30,
+          "free_mib": 4261
+        },
+        {
+          "step": 40,
+          "free_mib": 4261
+        },
+        {
+          "step": 50,
+          "free_mib": 4261
+        },
+        {
+          "step": 60,
+          "free_mib": 4261
+        },
+        {
+          "step": 70,
+          "free_mib": 4261
+        },
+        {
+          "step": 80,
+          "free_mib": 4261
+        },
+        {
+          "step": 90,
+          "free_mib": 4261
+        },
+        {
+          "step": 100,
+          "free_mib": 4261
+        }
+      ],
+      "child_wall_s": 6.937,
+      "external_timeout_hit": false,
+      "log": "results/raw/m2_a1_n128.log",
+      "raw_json": "results/raw/m2_a1_n128.json",
+      "speedup_vs_base": 7.107,
+      "scaling_efficiency": 0.8884,
+      "sps_per_env": 50.29,
+      "vram_mib_per_env": 11.1
     },
     {
       "num_envs": 256,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "exit_code": null,
+      "status": "OK",
+      "exit_code": 0,
       "attempts": 1,
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+      "init_s": 1.712,
+      "import_s": 2.21,
+      "reset_s": 0.06,
+      "level_elapsed_s": 4.465,
+      "process_elapsed_s": 6.756,
+      "warmup_s": 0.235,
+      "warmup_steps_done": 10,
+      "measure_s": 2.179,
+      "measure_steps_done": 100,
+      "total_env_steps": 25600,
+      "sim_sps": 11746.1,
+      "sim_steps_per_s": 45.88,
+      "ms_per_sim_step": 21.794,
+      "device_used_baseline_mib": 2133,
+      "device_used_peak_mib": 3931,
+      "device_used_after_build_mib": 3556,
+      "vram_free_min_mib": 4261,
+      "vram_free_after_mib": 4261,
+      "device_used_increase_mib": 1425,
+      "device_total_mib": 8192,
+      "headroom_min_mib": 4261,
+      "torch_peak_alloc_mib": 8.6,
+      "torch_peak_reserved_mib": 22.0,
+      "counters_total": {
+        "terminated_steps": 2,
+        "terminated_envs": 3,
+        "truncated_steps": 4,
+        "truncated_envs": 512,
+        "auto_reset_steps": 5,
+        "auto_reset_envs": 515
+      },
+      "counters_warmup": {
+        "terminated_steps": 1,
+        "terminated_envs": 2,
+        "truncated_steps": 0,
+        "truncated_envs": 0,
+        "auto_reset_steps": 1,
+        "auto_reset_envs": 2
+      },
+      "counters_measure": {
+        "terminated_steps": 1,
+        "terminated_envs": 1,
+        "truncated_steps": 4,
+        "truncated_envs": 512,
+        "auto_reset_steps": 4,
+        "auto_reset_envs": 513
+      },
+      "truncation_observed": true,
+      "warnings": [],
+      "error": null,
+      "backend": {
+        "requested": "physx_cuda",
+        "resolved": "physx_cuda",
+        "gpu_sim_enabled": true,
+        "num_envs": 256
+      },
+      "max_episode_steps": 50,
+      "horizon_source": "TimeLimitWrapper",
+      "action": {
+        "shape": [
+          256,
+          8
+        ],
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "values": "all zeros"
+      },
+      "vram_verdict": "OK",
+      "vram_free_samples": [
+        {
+          "step": 10,
+          "free_mib": 4261
+        },
+        {
+          "step": 10,
+          "free_mib": 4261
+        },
+        {
+          "step": 20,
+          "free_mib": 4261
+        },
+        {
+          "step": 30,
+          "free_mib": 4261
+        },
+        {
+          "step": 40,
+          "free_mib": 4261
+        },
+        {
+          "step": 50,
+          "free_mib": 4261
+        },
+        {
+          "step": 60,
+          "free_mib": 4261
+        },
+        {
+          "step": 70,
+          "free_mib": 4261
+        },
+        {
+          "step": 80,
+          "free_mib": 4261
+        },
+        {
+          "step": 90,
+          "free_mib": 4261
+        },
+        {
+          "step": 100,
+          "free_mib": 4261
+        }
+      ],
+      "child_wall_s": 7.473,
+      "external_timeout_hit": false,
+      "log": "results/raw/m2_a1_n256.log",
+      "raw_json": "results/raw/m2_a1_n256.json",
+      "speedup_vs_base": 12.968,
+      "scaling_efficiency": 0.8105,
+      "sps_per_env": 45.88,
+      "vram_mib_per_env": 5.6
     }
   ],
-  "levels_ok": [],
-  "levels_failed": [
-    {
-      "num_envs": 16,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
-    },
-    {
-      "num_envs": 64,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
-    },
-    {
-      "num_envs": 128,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
-    },
-    {
-      "num_envs": 256,
-      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
-      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
-    }
+  "levels_ok": [
+    16,
+    64,
+    128,
+    256
   ],
+  "levels_failed": [],
   "levels_not_run": [],
-  "total_wall_clock_s": 0.016,
+  "total_wall_clock_s": 27.706,
   "attempts_per_level": 1,
-  "generated_wall": "2026-10-21T16:15:01+0900"
+  "generated_wall": "2026-10-21T16:18:51+0900"
 }
