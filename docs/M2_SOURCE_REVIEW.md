@@ -123,8 +123,8 @@ delta_t = r_t + γ·real_next_values − V(s_t)
 ```
 
 - **截断时**：`next_not_done=0` → 用 `final_values[t] = V(o_{t+1})`，即**用真实的后续观测做 bootstrap**。这对截断是**正确**的（截断不是真终止，未来回报不为 0）。
-- **成功终止时**：同样走到 `final_values[t]`，于是目标里多了一项 `γ·V(成功状态)`。严格理论下终止状态应为 0（只保留 `r_t`）。**这是一处真实的小偏差**，方向是把价值目标抬高。
-- **λ 递归在两种 done 处都被切断**（`next_not_done` 同时乘进 `Â_{t+1}`）：截断处切断后向传播会略微短视，但方向保守。
+- **成功终止时**：同样走到 `final_values[t]`，于是 TD 目标多了一项 `γ·V(成功状态)`。严格理论下真正终止应不再 Bootstrap。**此实现存在非零终止状态价值时的目标偏差，但不能无实测地确定幅度或“必然抬高”：偏差符号取决于 Critic 的 `V(成功状态)` 预测，可能正、负或接近零。**
+- **λ 递归在两种 done 处都被切断**（`next_not_done` 同时乘进 `Â_{t+1}`）。在环境自动重置边界切断 trace 与使用末状态价值 Bootstrap 是两个不同操作；不能仅凭源码把它定性为“保守/短视”，影响需结合正确时间限制语义与测试。
 - 作者自己在 **373 行**留了注释：`# Here actually we should use next_not_terminated, but we don't have lastgaelam if terminated`。
 
 → 结论：**不能说这段实现"错误"，但它确实把 termination 和 truncation 当同一种边界处理**。学习者必须能指出这个偏差及其方向，而不是背"GAE 公式"。这也是 M2 理解题 Q3 的落点。
@@ -187,7 +187,7 @@ seeds           = 9351, 4796, 1788 → 三 seed 合计 149,962,752 env steps
 
 | 项目 | 量级 | 说明 |
 |---|---|---|
-| Actor+Critic 参数 | ~0.6 M（4×256×256 MLP ×2） | 可忽略 |
+| Actor+Critic 参数 | **约 0.29 M**（state=42、action=8、两网各 3 个 256 隐层的 PyTorch Linear/Tanh；含 actor_logstd） | 不会是主要显存瓶颈 |
 | batch 张量 | 16384 × (42 obs + 8 act + 3 scalar) ≈ 数 MB | 可忽略 |
 | 优化器状态 | Adam 两份矩 ≈ 数 MB | 可忽略 |
 | **4096 并行环境** | **未知，主要风险** | 每个 env 的 articulation/contact buffer 在 GPU 上；ManiSkill 公开说法是 state 任务可跑数千 env，但**不是 3070 + 8GB 的实测** |

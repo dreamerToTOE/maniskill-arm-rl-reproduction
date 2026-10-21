@@ -1,6 +1,8 @@
 # M2 GPU 运行报批 — 分阶段资源上限方案
 
-> 状态：**PROPOSAL_ONLY / NOT_APPROVED / NOT_RUN**
+> 状态：**PROPOSAL_ONLY / NOT_APPROVED / NOT_RUN — ORIGINAL STAGE A CURRENTLY HELD FOR TECHNICAL REPAIR**
+>
+> **2026-10-21 independent review:** Do **not** run the Stage A 64→4096 sweep as written. The script passes an unbatched `(8,)` action to multi-env simulation (the upstream code only auto-batches when `num_envs==1`); startup and warmup are not included in the advertised per-level timer; there is no enforced total wall-clock limit; the raw env is stepped beyond the 50-step episode horizon without a documented reset strategy; VRAM protection is too weak. See `docs/M2_INDEPENDENT_REVIEW.md`. **First approved candidate should instead be a 1-env, 3-step `physx_cuda` smoke ≤120s; no `tensorboard` is required for this smoke.** Fix and statically review the multi-env probe before seeking new approval for any larger sweep.
 > 日期 2026-10-21 · 上游 ManiSkill v3.0.1 `a4a4f9272ad64b1564035874b605ceb687b63ed8`
 > 依据：`docs/M2_SOURCE_REVIEW.md`（源码核对）与只读 GPU 诊断（`results/raw/m2_gpu_readonly_diag.log`）
 > 本文是**申请**，不是执行记录。以下每一阶段都需要研究者单独批准后才可运行。

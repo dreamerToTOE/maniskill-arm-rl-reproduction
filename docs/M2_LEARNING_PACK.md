@@ -129,7 +129,7 @@ L_value = 0.5 * mean((V_new(s_t) − R_t)^2)
    向量环境在 `dones` 处先克隆"重置前"的观测存进 `infos["final_observation"]`，再重置；
    所以 `next_obs` 是新 episode 的起点，`final_observation` 才是旧 episode 真正的 `o_{t+1}`。
    → 截断时用它做 Bootstrap 是**正确**的；成功终止时也用它，等于在终止状态上多加了一项
-   `γ·V(s_T)`，而严格理论下终止状态应为 0 —— **这是一处真实的小偏差，方向是抬高价值目标**。
+   `γ·V(s_T)`，而严格理论下真终止状态应当不再 Bootstrap（取 0）。**这是潜在的价值目标偏差，但偏差方向取决于当前 Critic 对该终止状态预测的正负，不能不经实测断言一定抬高；偏差大小也未量化**。
    λ 递归在两种 done 处都被切断。作者在 373 行自注：
    `# Here actually we should use next_not_terminated, but we don't have lastgaelam if terminated`。
    因此**不能说这段实现"错"，但它确实把 termination 与 truncation 当同一种边界处理**。
