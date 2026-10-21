@@ -1,12 +1,18 @@
 # M2 GPU 运行报批 — 分阶段资源上限方案
 
-> 状态：**PROPOSAL_ONLY / NOT_APPROVED / NOT_RUN — STAGE A0 REPAIRED AND READY, A1 NOT AUTHORIZED**
+> 状态：**A0 PASSED (12/12) / A1 AUTHORIZED → BLOCKED（0 等级执行）/ STAGE B NOT APPROVED**
+>
+> **2026-10-21 A1 轮：** 授权范围 16/64/128/256 已全部落地为代码，并拆成"每级一个独立进程 + 驱动器"，
+> 逐项对应 `docs/M2_A1_EXECUTION_REPORT.md` §2-§3。静态检查 51 + 82 项全过，fail-closed 路径两次实测
+> （剥 `PATH` → exit 8 / 0.049 s；驱动器 preflight → exit 8 / 0 等级）。**但 agent 会话仍无 GPU 设备节点，
+> 因此没有任何 SPS 或显存实测值**，执行命令见 §Stage A1。
 >
 > **2026-10-21 修复完成：** 原 Stage A 64→4096 扫描已被独立复核否决并冻结。修复后的方案拆成两个脚本，
 > 逐项修复见 `docs/M2_GPU_PROBE_REPAIR.md`，静态检查证据见 `results/raw/m2_static_checks.log`：
 > **A0** = `scripts/m2_gpu_smoke_a0.py`（1 env / 3 步零动作 / 内部 100 s + 外部 `timeout 120` / 零依赖），
-> **A1** = `scripts/m2_gpu_sim_probe.py`（重写，默认 16/64/128/256，512 需 `--allow-512`，>512 直接拒绝）。
-> 两者都**未执行**。A0 的拟执行命令见 §0.1 与 `docs/M2_GPU_PROBE_REPAIR.md` §3.1。
+> **A1** = `scripts/m2_gpu_sim_probe.py`（单等级）+ `scripts/m2_a1_run_all.py`（每级独立进程的驱动器），
+> 默认 16/64/128/256，512 需 `--allow-512`，>256 在驱动器层拒绝。
+> **执行情况：A0 已于 15:44 由研究者在终端 PASS（12/12）；A1 于 16:09 在本会话 `BLOCKED`（0 等级）。**
 >
 > **2026-10-21 independent review:** Do **not** run the Stage A 64→4096 sweep as written. The script passes an unbatched `(8,)` action to multi-env simulation (the upstream code only auto-batches when `num_envs==1`); startup and warmup are not included in the advertised per-level timer; there is no enforced total wall-clock limit; the raw env is stepped beyond the 50-step episode horizon without a documented reset strategy; VRAM protection is too weak. See `docs/M2_INDEPENDENT_REVIEW.md`. **First approved candidate should instead be a 1-env, 3-step `physx_cuda` smoke ≤120s; no `tensorboard` is required for this smoke.** Fix and statically review the multi-env probe before seeking new approval for any larger sweep.
 > 日期 2026-10-21 · 上游 ManiSkill v3.0.1 `a4a4f9272ad64b1564035874b605ceb687b63ed8`
@@ -73,21 +79,39 @@ echo "exit=${PIPESTATUS[0]}"
 | 依赖 | **零新增**（不需要 `tensorboard`） |
 | 产出 | `results/m2_gpu_smoke_a0.json` + `results/raw/m2_gpu_smoke_a0.log` |
 
-### Stage A1 — 并行吞吐探针（**未获授权**）
+### Stage A1 — 并行吞吐探针（**2026-10-21 已获授权；已加固并通过静态检查；执行 `BLOCKED`**）
 
 | 项目 | 设定 |
 |---|---|
-| 脚本 | `scripts/m2_gpu_sim_probe.py`（**已重写，未运行**） |
-| 并行数 | **16 → 64 → 128 → 256**（512 需 `--allow-512`；>512 直接拒绝） |
+| 脚本 | `scripts/m2_gpu_sim_probe.py`（单等级）+ `scripts/m2_a1_run_all.py`（驱动器） |
+| 并行数 | **16 → 64 → 128 → 256**（512 需 `--allow-512`；>256 在驱动器层直接拒绝） |
+| 隔离方式 | **每个等级一个独立进程、独立 JSON、独立日志**；任一等级失败即停止，剩余等级记为 `NOT_RUN_AFTER_FAILURE`；`attempts: 1`，无自动重试 |
 | 每级预算 | warmup 10 步 + 计时 100 步，**单级 ≤ 90 s**（含 build/reset/warmup/measure/cleanup） |
-| 总墙钟上限 | **≤ 600 s**（外加外部 `timeout`） |
+| 进程预算 | **≤ 120 s**（import + build + steps + cleanup，monotonic + watchdog） |
+| 外部上限 | 每级 `timeout --signal=TERM --kill-after=10s 150`；整轮外部上限 4×150 = 600 s |
 | 动作 | 零动作，形状 `(num_envs, 8)`，device=cuda |
-| 回合语义 | `ManiSkillVectorEnv(auto_reset=True)`，记录 terminated/truncated/auto_reset 计数 |
-| 显存 | 起始闸 3072 MiB、运行闸 1536 MiB、每 10 步设备级采样；torch 峰值只作下界 |
-| 产出 | `results/m2_gpu_sim_probe.json`（含 `scope_warning`） |
+| 回合语义 | `ManiSkillVectorEnv(auto_reset=True)`，记录 step 级与 env 级 terminated/truncated/auto_reset；**零截断即判失败** |
+| 显存 | 起始闸 3072 MiB、运行闸 1536 MiB、每 10 步设备级采样；torch 峰值只作下界（记录但不用于估算） |
+| 遥测 | **强制**：`nvidia-smi` 不可用则在 `import torch` 之前退出 8，不建任何场景 |
+| 产出 | `results/m2_a1_benchmark_summary.json` + `results/raw/m2_a1_n{16,64,128,256}.{json,log}` |
 
-**验收判据（决定 Stage B 的并行数）**：在"设备级 used 峰值 ≤ 6500 MiB 且 free ≥ 1000 MiB"的前提下，
-取能稳定跑完的最大等级作为 Stage B 的 `num_envs` 候选，上限 512。
+**执行命令（一行，研究者终端；详见 `docs/M2_A1_EXECUTION_REPORT.md` §6）**：
+
+```bash
+cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+./.venv-maniskill/bin/python scripts/m2_a1_run_all.py 2>&1 | tee results/raw/m2_a1_launcher.log
+```
+
+退出码：`0` = 四级全过；`1` = 部分完成；`2` = 首级失败；`8` = 遥测不可用（本轮即此）。
+
+**验收判据（决定 Stage B 的并行数）**：取满足
+`设备级 used 峰值 ≤ 6500 MiB`、`free_min ≥ 1000 MiB`、`scaling_efficiency ≥ 0.5`、且无 error/warning
+的**最大**等级，然后**再减半**作为 Stage B 首个 pilot 的 `num_envs`（训练路径还要分配
+策略/优化器状态，官方 fast 脚本还要 `rgb_array` 渲染）。若 16 级都过不了 headroom 判据，
+则本地 Stage B 不可行。
+
+> 当前状态：**`BLOCKED`** — 2026-10-21 16:09 agent 会话只有空的 `/dev/nvidia-caps`，驱动器
+> 在 preflight 退出 8，**执行了 0 个等级**。因此本文件与 A1 报告里没有任何 SPS/显存实测值。
 
 > `render_mode=None` 与官方 `ppo.py` 的 `rgb_array` 不可等价；A1 的 SPS 也不含前向/反向，不可外推为训练速度。
 
@@ -134,9 +158,9 @@ echo "exit=${PIPESTATUS[0]}"
 ## 审批清单（请逐项勾选后再执行）
 
 - [ ] **A-1** 批准安装 `tensorboard`（约 200–400 MB）
-- [ ] **A-2** 批准运行 Stage A 探针：7 个并行等级、单级 ≤60 s、总 ≤12 min、free<500 MiB 即停
+- [x] **A-2** 批准运行 Stage A1 探针（2026-10-21）：16/64/128/256、单级 ≤90 s、每级独立进程 + 外部 `timeout 150`、起始闸 3072 MiB、运行闸 1536 MiB、失败即停 —— **已授权，执行 `BLOCKED`（agent 会话无 GPU 设备节点），待研究者在终端执行**
 - [ ] **B-1** 批准 Stage B pilot：`ppo.py`、≤256k env steps、≤20 min、≤300 MB、无 wandb、无视频
-- [ ] **B-2** 指定 Stage B 的 `num_envs`（或授权我按 Stage A 结论自动取"峰值 ≤6500 MiB 的最大值，上限 1024"）
+- [ ] **B-2** 指定 Stage B 的 `num_envs`（或授权按 A1 结论取"headroom 达标的最大值再减半"）
 - [ ] 确认不在本轮申请：官方 4096×50M 三 seed、`ppo_fast.py`（需 tensordict+wandb）、云 GPU、checkpoint 下载
 
 ---

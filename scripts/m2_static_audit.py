@@ -74,8 +74,23 @@ PER_FILE_REQUIRED = {
         "acceptance_checks",
         "finalize_with_gate",
     },
-    "m2_gpu_sim_probe.py": {"vram_gate", "validate_env_counts", "ManiSkillVectorEnv"},
+    "m2_gpu_sim_probe.py": {
+        "vram_gate",
+        "validate_env_counts",
+        "ManiSkillVectorEnv",
+        "telemetry_verdict",
+        "device_nodes",
+    },
+    "m2_a1_run_all.py": {
+        "build_command",
+        "extract_measurements",
+        "compute_scaling",
+        "summarize",
+        "preflight_gpu",
+    },
 }
+# Scripts that never build an env: skip the gym.make / action / watchdog checks.
+NO_ENV_SCRIPTS = {"m2_a1_run_all.py"}
 REQUIRED_STRINGS = ("nvidia-smi", "physx_cuda")
 
 
@@ -142,10 +157,27 @@ class Audit:
             r for r in (REQUIRED_IDENTS | PER_FILE_REQUIRED.get(self.path.name, set()))
             if r not in idents
         )
+        if self.path.name in NO_ENV_SCRIPTS:
+            # the launcher exists to spawn isolated child processes
+            required_idents = PER_FILE_REQUIRED.get(self.path.name, set())
+            missing = sorted(r for r in required_idents if r not in idents)
         self.check("required guards present", not missing, str(missing))
 
-        missing_s = [r for r in REQUIRED_STRINGS if not any(r in s for s in strs)]
-        self.check("required primitives present", not missing_s, str(missing_s))
+        if self.path.name not in NO_ENV_SCRIPTS:
+            missing_s = [r for r in REQUIRED_STRINGS if not any(r in s for s in strs)]
+            self.check("required primitives present", not missing_s, str(missing_s))
+
+        if self.path.name in NO_ENV_SCRIPTS:
+            self.check("launcher pins physx_cuda in its config",
+                       any("physx_cuda" in s for s in strs))
+            self.check("launcher uses an external timeout",
+                       any("timeout" in s for s in strs))
+            self.check("launcher records not-run levels after a failure",
+                       "NOT_RUN_AFTER_FAILURE" in self.src)
+            self.check("launcher has no retry loop",
+                       '"attempts": 1' in self.src and "while True" not in self.src)
+            self.check("launcher stops after the first failure", "stopped = True" in self.src)
+            return
 
         make_calls = [
             n for n in ast.walk(self.tree)
@@ -191,6 +223,57 @@ class Audit:
 
         has_monotonic = "monotonic" in {n.attr for n in ast.walk(self.tree) if isinstance(n, ast.Attribute)}
         self.check("monotonic deadline used", has_monotonic)
+
+
+def _arg_defaults(a: Audit) -> dict[str, object]:
+    defaults: dict[str, object] = {}
+    for node in ast.walk(a.tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "add_argument"):
+            continue
+        args = [x.value for x in node.args if isinstance(x, ast.Constant)]
+        if not args:
+            continue
+        flag = str(args[0]).lstrip("-")
+        for kw in node.keywords:
+            if kw.arg == "default" and isinstance(kw.value, ast.Constant):
+                defaults[flag] = kw.value.value
+    return defaults
+
+
+def audit_a1_specifics(a: Audit) -> None:
+    """Stage A1 is fixed at 10 warmup + 100 measured steps, 90 s/level, 8 GiB gates."""
+    d = _arg_defaults(a)
+    a.check("A1 warmup default is 10", d.get("warmup-steps") == 10, str(d.get("warmup-steps")))
+    a.check("A1 measured steps default is 100", d.get("steps") == 100, str(d.get("steps")))
+    a.check("A1 per-level budget is 90 s", d.get("level-seconds") == 90.0, str(d.get("level-seconds")))
+    a.check("A1 process budget is 120 s", d.get("total-seconds") == 120.0, str(d.get("total-seconds")))
+    a.check("A1 declares the external 150 s limit",
+            d.get("external-limit-s") == 150.0, str(d.get("external-limit-s")))
+    a.check("A1 start gate is 3072 MiB", d.get("min-free-mib") == 3072, str(d.get("min-free-mib")))
+    a.check("A1 abort gate is 1536 MiB", d.get("abort-free-mib") == 1536, str(d.get("abort-free-mib")))
+    a.check("A1 has a dedicated no-telemetry exit code", "EXIT_NO_VRAM_TELEMETRY" in a.src)
+    a.check("A1 refuses a level without truncation evidence", "FAIL_NO_TRUNCATION" in a.src)
+    a.check("A1 records auto-reset counters", "auto_reset_envs" in a.src)
+
+    src = a.src
+    gate_line = None
+    import_line = None
+    for node in ast.walk(a.tree):
+        # the *call* to the gate, not its definition
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "telemetry_verdict" and gate_line is None):
+            gate_line = node.lineno
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = [n.name for n in node.names]
+            if "torch" in names and import_line is None:
+                import_line = node.lineno
+    a.check("A1 telemetry gate precedes `import torch`",
+            gate_line is not None and import_line is not None and gate_line < import_line,
+            f"gate_line={gate_line} import_line={import_line}")
+    a.check("A1 refuses low VRAM with its own exit code", "EXIT_LOW_VRAM" in src)
 
 
 def audit_a0_specifics(a: Audit) -> None:
@@ -248,7 +331,8 @@ def run_self_tests(paths: list[str]) -> list[dict]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("files", nargs="*", default=["scripts/m2_gpu_smoke_a0.py",
-                                                 "scripts/m2_gpu_sim_probe.py"])
+                                                 "scripts/m2_gpu_sim_probe.py",
+                                                 "scripts/m2_a1_run_all.py"])
     ap.add_argument("--json", type=Path, default=None,
                     help="write a machine-readable summary here")
     ap.add_argument("--no-self-test", action="store_true",
@@ -268,6 +352,8 @@ def main(argv: list[str] | None = None) -> int:
         a.run()
         if p.name == "m2_gpu_smoke_a0.py":
             audit_a0_specifics(a)
+        if p.name == "m2_gpu_sim_probe.py":
+            audit_a1_specifics(a)
         total_pass += a.passes
         failures += len(a.failures)
         per_file.append({"script": f, "passed": a.passes,

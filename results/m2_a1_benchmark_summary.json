@@ -1,0 +1,116 @@
+{
+  "kind": "m2_a1_benchmark_summary",
+  "stage": "A1",
+  "verdict": "BLOCKED",
+  "levels_executed": 0,
+  "notes": [
+    "verdict BLOCKED: device-level VRAM telemetry was unavailable, so no level was spawned. This file documents a refused attempt, not a benchmark. Rerunning the launcher overwrites it."
+  ],
+  "scope_warning": "SIMULATOR steps/second only (zero actions, render_mode=None, no policy, no gradients). This is NOT training throughput, NOT a reproduction of the official baseline, and must not be compared with published numbers.",
+  "config": {
+    "env_id": "PickCube-v1",
+    "robot": "panda",
+    "levels": [
+      16,
+      64,
+      128,
+      256
+    ],
+    "warmup_steps": 10,
+    "measure_steps": 100,
+    "level_budget_s": 90.0,
+    "process_budget_s": 120.0,
+    "external_timeout_s": 150.0,
+    "launcher_backstop_s": 180.0,
+    "min_free_mib": 3072,
+    "abort_free_mib": 1536,
+    "vram_every": 10,
+    "obs_mode": "state",
+    "control_mode": "pd_joint_delta_pos",
+    "reward_mode": "normalized_dense",
+    "sim_backend": "physx_cuda",
+    "render_mode": null,
+    "actions": "zero",
+    "ppo_installed": false,
+    "dependencies_installed": false
+  },
+  "preflight": {
+    "telemetry_verdict": "UNAVAILABLE",
+    "telemetry_reason": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.",
+    "device_nodes": {
+      "present": true,
+      "nodes": [
+        "/dev/nvidia-caps"
+      ]
+    },
+    "gpu": null,
+    "diagnostics": {
+      "binary": "/usr/bin/nvidia-smi",
+      "returncode": 9,
+      "stderr_head": [
+        "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+      ],
+      "exception": null,
+      "command": "/usr/bin/nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader,nounits"
+    },
+    "other_compute_apps": [],
+    "blocked": true
+  },
+  "rows": [
+    {
+      "num_envs": 16,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "exit_code": null,
+      "attempts": 1,
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    },
+    {
+      "num_envs": 64,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "exit_code": null,
+      "attempts": 1,
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    },
+    {
+      "num_envs": 128,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "exit_code": null,
+      "attempts": 1,
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    },
+    {
+      "num_envs": 256,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "exit_code": null,
+      "attempts": 1,
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    }
+  ],
+  "levels_ok": [],
+  "levels_failed": [
+    {
+      "num_envs": 16,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    },
+    {
+      "num_envs": 64,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    },
+    {
+      "num_envs": 128,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    },
+    {
+      "num_envs": 256,
+      "status": "NOT_RUN_PREFLIGHT_BLOCKED",
+      "error": "nvidia-smi exited 9: NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."
+    }
+  ],
+  "levels_not_run": [],
+  "total_wall_clock_s": 0.016,
+  "attempts_per_level": 1,
+  "generated_wall": "2026-10-21T16:15:01+0900"
+}

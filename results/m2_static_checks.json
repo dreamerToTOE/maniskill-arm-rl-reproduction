@@ -3,7 +3,7 @@
   "generated_by": "scripts/m2_static_audit.py",
   "note": "No CUDA context, no environment instantiation, no installation.",
   "audit": {
-    "total_passed": 29,
+    "total_passed": 51,
     "total_failed": 0,
     "files": [
       {
@@ -14,7 +14,13 @@
       },
       {
         "script": "scripts/m2_gpu_sim_probe.py",
-        "passed": 12,
+        "passed": 24,
+        "failed": 0,
+        "failures": []
+      },
+      {
+        "script": "scripts/m2_a1_run_all.py",
+        "passed": 10,
         "failed": 0,
         "failures": []
       }
@@ -31,7 +37,14 @@
     {
       "script": "scripts/m2_gpu_sim_probe.py",
       "returncode": 0,
-      "passed": 19,
+      "passed": 24,
+      "failed": 0,
+      "ok": true
+    },
+    {
+      "script": "scripts/m2_a1_run_all.py",
+      "returncode": 0,
+      "passed": 22,
       "failed": 0,
       "ok": true
     }
