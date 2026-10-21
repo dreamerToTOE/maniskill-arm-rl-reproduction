@@ -395,13 +395,32 @@ def batched_action_shape(num_envs: int, action_shape: tuple[int, ...]) -> tuple[
     return (int(num_envs), *tuple(int(x) for x in action_shape))
 
 
-def episode_horizon(env: Any) -> tuple[int | None, list[str]]:
+def _inner_wrapper(cur: Any) -> Any:
+    """Next env down the chain.
+
+    gymnasium wrappers expose `.env`; `ManiSkillVectorEnv` stores the wrapped env
+    in `._env` (vector/wrappers/gymnasium.py:46-48). Walking only `.env` stops at
+    the vector wrapper and silently loses the horizon - that is exactly the bug
+    that made the first host-side A0 report `wrapper_chain=['ManiSkillVectorEnv']`
+    and `max_episode_steps=None`.
+    """
+    for attr in ("env", "_env"):
+        nxt = getattr(cur, attr, None)
+        if nxt is not None and nxt is not cur:
+            return nxt
+    return None
+
+
+def episode_horizon(env: Any) -> tuple[int | None, list[str], str | None]:
     """Walk the wrapper chain for the real step budget.
 
     gymnasium 1.1.1 leaves `env.spec.max_episode_steps` as None for ManiSkill;
     the budget lives on ManiSkill's own `TimeLimitWrapper._max_episode_steps`.
+    Returns (horizon, chain_names, source_wrapper) so the evidence says *which*
+    layer supplied the number instead of just asserting one.
     """
     horizon: int | None = None
+    source: str | None = None
     names: list[str] = []
     cur = env
     for _ in range(16):
@@ -409,11 +428,12 @@ def episode_horizon(env: Any) -> tuple[int | None, list[str]]:
         candidate = getattr(cur, "_max_episode_steps", None)
         if horizon is None and isinstance(candidate, int):
             horizon = candidate
-        nxt = getattr(cur, "env", None)
-        if nxt is None or nxt is cur:
+            source = type(cur).__name__
+        nxt = _inner_wrapper(cur)
+        if nxt is None:
             break
         cur = nxt
-    return horizon, names
+    return horizon, names, source
 
 
 def arm_watchdog(budget_s: float, on_fire) -> threading.Timer:
@@ -484,9 +504,23 @@ def run_self_test() -> int:
                 self._max_episode_steps = steps
 
     chain = _W(_W(_W(steps=50)))
-    horizon, names = episode_horizon(chain)
+    horizon, names, source = episode_horizon(chain)
     check("horizon walk", horizon == 50, f"horizon={horizon} chain={names}")
     check("horizon names", len(names) == 3, str(names))
+    check("horizon source recorded", source == "_W", str(source))
+
+    class _V:
+        """Mimics ManiSkillVectorEnv: inner env lives in `_env`, not `env`."""
+
+        def __init__(self, inner):
+            self._env = inner
+
+    vec_chain = _V(_W(_W(steps=50)))
+    horizon_v, names_v, source_v = episode_horizon(vec_chain)
+    check("horizon reaches through ManiSkillVectorEnv", horizon_v == 50,
+          f"horizon={horizon_v} chain={names_v}")
+    check("vector wrapper chain recorded", names_v == ["_V", "_W", "_W"] and source_v == "_W",
+          str(names_v))
 
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -775,9 +809,10 @@ def main(argv: list[str] | None = None) -> int:
             "env_device": str(getattr(unwrapped, "device", "unknown")),
             "num_envs": int(getattr(unwrapped, "num_envs", -1)),
         }
-        horizon, chain = episode_horizon(env)
+        horizon, chain, horizon_source = episode_horizon(env)
         state["backend"]["wrapper_chain"] = chain
         state["backend"]["max_episode_steps"] = horizon
+        state["backend"]["horizon_source"] = horizon_source
         state["spaces"] = {
             "single_action_space": list(env.single_action_space.shape),
             "action_space": list(env.action_space.shape),

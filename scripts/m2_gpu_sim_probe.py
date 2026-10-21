@@ -174,8 +174,18 @@ def validate_env_counts(counts: list[int], allow_512: bool) -> list[int]:
     return counts
 
 
-def episode_horizon(env: Any) -> tuple[int | None, list[str]]:
+def _inner_wrapper(cur: Any) -> Any:
+    """Next env down the chain: gymnasium uses `.env`, ManiSkillVectorEnv uses `._env`."""
+    for attr in ("env", "_env"):
+        nxt = getattr(cur, attr, None)
+        if nxt is not None and nxt is not cur:
+            return nxt
+    return None
+
+
+def episode_horizon(env: Any) -> tuple[int | None, list[str], str | None]:
     horizon: int | None = None
+    source: str | None = None
     names: list[str] = []
     cur = env
     for _ in range(16):
@@ -183,11 +193,12 @@ def episode_horizon(env: Any) -> tuple[int | None, list[str]]:
         candidate = getattr(cur, "_max_episode_steps", None)
         if horizon is None and isinstance(candidate, int):
             horizon = candidate
-        nxt = getattr(cur, "env", None)
-        if nxt is None or nxt is cur:
+            source = type(cur).__name__
+        nxt = _inner_wrapper(cur)
+        if nxt is None:
             break
         cur = nxt
-    return horizon, names
+    return horizon, names, source
 
 
 def arm_watchdog(budget_s: float, on_fire) -> threading.Timer:
@@ -263,8 +274,15 @@ def run_self_test() -> int:
             if steps is not None:
                 self._max_episode_steps = steps
 
-    horizon, names = episode_horizon(_W(_W(_W(steps=50))))
+    horizon, names, source = episode_horizon(_W(_W(_W(steps=50))))
     check("horizon walk", horizon == 50, f"{horizon} {names}")
+
+    class _V:
+        def __init__(self, inner):
+            self._env = inner
+
+    horizon_v, names_v, _ = episode_horizon(_V(_W(_W(steps=50))))
+    check("horizon reaches through ManiSkillVectorEnv", horizon_v == 50, f"{horizon_v} {names_v}")
 
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -472,8 +490,9 @@ def main(argv: list[str] | None = None) -> int:
                     "gpu_sim_enabled": gpu_sim,
                     "num_envs": int(getattr(unwrapped, "num_envs", -1)),
                 }
-                horizon, chain = episode_horizon(env)
+                horizon, chain, horizon_source = episode_horizon(env)
                 entry["max_episode_steps"] = horizon
+                entry["horizon_source"] = horizon_source
                 entry["wrapper_chain"] = chain
                 if backend_name != "physx_cuda" or not gpu_sim:
                     entry["status"] = "FAIL_SIM_BACKEND"

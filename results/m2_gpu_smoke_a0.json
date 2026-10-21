@@ -1,28 +1,197 @@
 {
   "script": "m2_gpu_smoke_a0.py",
   "stage": "A0",
-  "status": "VRAM_TELEMETRY_UNAVAILABLE",
-  "started_wall": "2026-10-21T12:56:34+0900",
+  "status": "GATE_FAILED",
+  "started_wall": "2026-10-21T15:39:35+0900",
   "pinned": {
     "mani_skill": "3.0.1",
     "sapien": "3.0.0",
     "torch": "2.5.1"
   },
   "timings_s": {
-    "cleanup": 1.092
+    "import": 7.955,
+    "build_env": 26.671,
+    "reset": 0.054,
+    "step1": 0.055,
+    "step2": 0.016,
+    "step3": 0.016,
+    "cleanup": 0.07
   },
-  "steps": [],
+  "steps": [
+    {
+      "step": 1,
+      "wall_s": 0.055,
+      "reward": 0.062328,
+      "terminated": 0,
+      "truncated": 0,
+      "success": false,
+      "elapsed_steps": 1,
+      "auto_reset_used": false,
+      "obs": {
+        "shape": [
+          1,
+          42
+        ],
+        "dtype": "torch.float32",
+        "sum": 3.991216,
+        "absmax": 2.336649,
+        "first8": [
+          0.03528,
+          0.400702,
+          0.019574,
+          -1.918678,
+          0.037351,
+          2.336649,
+          0.8044,
+          0.0302
+        ]
+      },
+      "vram_free_mib": 4043,
+      "vram_telemetry": {
+        "verdict": "AVAILABLE",
+        "reason": "memory.free=4043 MiB"
+      },
+      "torch_peak_alloc_mib": 8.2
+    },
+    {
+      "step": 2,
+      "wall_s": 0.016,
+      "reward": 0.062328,
+      "terminated": 0,
+      "truncated": 0,
+      "success": false,
+      "elapsed_steps": 2,
+      "auto_reset_used": false,
+      "obs": {
+        "shape": [
+          1,
+          42
+        ],
+        "dtype": "torch.float32",
+        "sum": 4.098909,
+        "absmax": 2.336649,
+        "first8": [
+          0.035281,
+          0.400702,
+          0.019574,
+          -1.918678,
+          0.037351,
+          2.336649,
+          0.8044,
+          0.024228
+        ]
+      },
+      "vram_free_mib": 4043,
+      "vram_telemetry": {
+        "verdict": "AVAILABLE",
+        "reason": "memory.free=4043 MiB"
+      },
+      "torch_peak_alloc_mib": 8.2
+    },
+    {
+      "step": 3,
+      "wall_s": 0.016,
+      "reward": 0.062328,
+      "terminated": 0,
+      "truncated": 0,
+      "success": false,
+      "elapsed_steps": 3,
+      "auto_reset_used": false,
+      "obs": {
+        "shape": [
+          1,
+          42
+        ],
+        "dtype": "torch.float32",
+        "sum": 4.164279,
+        "absmax": 2.336649,
+        "first8": [
+          0.035281,
+          0.400702,
+          0.019575,
+          -1.918678,
+          0.037351,
+          2.336649,
+          0.8044,
+          0.020602
+        ]
+      },
+      "vram_free_mib": 4043,
+      "vram_telemetry": {
+        "verdict": "AVAILABLE",
+        "reason": "memory.free=4043 MiB"
+      },
+      "torch_peak_alloc_mib": 8.2
+    }
+  ],
   "vram": {
     "telemetry": {
       "source": "nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu",
       "required": true,
-      "verdict": "UNAVAILABLE",
-      "reason": "nvidia-smi missing, non-zero exit, unparsable output, or timeout",
-      "probe": null,
-      "nvidia_smi_path": "/usr/bin/nvidia-smi"
+      "verdict": "AVAILABLE",
+      "reason": "memory.free=5654 MiB",
+      "probe": {
+        "name": "NVIDIA GeForce RTX 3070",
+        "driver_version": "580.178.04",
+        "memory.total": 8192,
+        "memory.used": 2165,
+        "memory.free": 5654,
+        "utilization.gpu": 4
+      },
+      "nvidia_smi_path": "/usr/bin/nvidia-smi",
+      "diagnostics": {
+        "binary": "/usr/bin/nvidia-smi",
+        "returncode": 0,
+        "stderr_head": null,
+        "exception": null,
+        "command": "/usr/bin/nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader,nounits"
+      }
     },
-    "device_before": null,
-    "compute_apps_before": []
+    "device_before": {
+      "name": "NVIDIA GeForce RTX 3070",
+      "driver_version": "580.178.04",
+      "memory.total": 8192,
+      "memory.used": 2165,
+      "memory.free": 5654,
+      "utilization.gpu": 4
+    },
+    "compute_apps_before": [
+      {
+        "pid": "2580",
+        "process": "/usr/libexec/gnome-remote-desktop-daemon",
+        "used_mib": 157
+      }
+    ],
+    "preflight_verdict": "OK",
+    "torch_peak_alloc_mib": 8.2,
+    "torch_peak_reserved_mib": 22.0,
+    "device_after": {
+      "memory.total": 8192,
+      "memory.used": 3775,
+      "memory.free": 4043,
+      "utilization.gpu": 2
+    },
+    "device_after_diagnostics": {
+      "binary": "/usr/bin/nvidia-smi",
+      "returncode": 0,
+      "stderr_head": null,
+      "exception": null,
+      "command": "/usr/bin/nvidia-smi --query-gpu=memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader,nounits"
+    },
+    "device_after_verdict": "AVAILABLE",
+    "compute_apps_after": [
+      {
+        "pid": "2580",
+        "process": "/usr/libexec/gnome-remote-desktop-daemon",
+        "used_mib": 157
+      },
+      {
+        "pid": "67087",
+        "process": "./.venv-maniskill/bin/python",
+        "used_mib": 1342
+      }
+    ],
+    "attribution_note": "torch_peak_* counts only the PyTorch caching allocator. SAPIEN/PhysX allocate directly through CUDA, so total usage must be read from nvidia-smi memory.used before/after; the delta is the device-level cost of this scene (includes desktop noise)."
   },
   "config": {
     "env_id": "PickCube-v1",
@@ -40,30 +209,111 @@
     "abort_free_mib": 1536
   },
   "phase": "cleanup",
-  "error": "device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation: nvidia-smi missing, non-zero exit, unparsable output, or timeout; aborting without building any scene",
-  "elapsed_s": 1.204,
+  "elapsed_s": 35.082,
+  "versions": {
+    "mani_skill": "3.0.1",
+    "sapien": "3.0.0",
+    "torch": "2.5.1+cu121",
+    "cuda_runtime": "12.1",
+    "gymnasium": "1.1.1"
+  },
+  "version_mismatches": [],
+  "cuda": {
+    "available": true,
+    "device_count": 1,
+    "device_name": "NVIDIA GeForce RTX 3070",
+    "capability": "8.6",
+    "total_mib": 7818
+  },
+  "backend": {
+    "requested": "physx_cuda",
+    "resolved": "physx_cuda",
+    "gpu_sim_enabled": true,
+    "sim_device": "cuda:0",
+    "env_device": "cuda",
+    "num_envs": 1,
+    "wrapper_chain": [
+      "ManiSkillVectorEnv"
+    ],
+    "max_episode_steps": null
+  },
+  "spaces": {
+    "single_action_space": [
+      8
+    ],
+    "action_space": [
+      8
+    ],
+    "single_obs_space_len": 42
+  },
+  "reset": {
+    "seed": 0,
+    "obs": {
+      "shape": [
+        1,
+        42
+      ],
+      "dtype": "torch.float32",
+      "sum": 4.314733,
+      "absmax": 2.336649,
+      "first8": [
+        0.035281,
+        0.400702,
+        0.019575,
+        -1.918678,
+        0.037351,
+        2.336649,
+        0.8044,
+        0.04
+      ]
+    },
+    "info_keys": [
+      "elapsed_steps",
+      "is_grasped",
+      "is_obj_placed",
+      "is_robot_static",
+      "reconfigure",
+      "success"
+    ],
+    "elapsed_steps_after_reset": 0,
+    "vram_free_mib": 4045
+  },
+  "action": {
+    "requested_shape": [
+      1,
+      8
+    ],
+    "actual_shape": [
+      1,
+      8
+    ],
+    "dtype": "torch.float32",
+    "device": "cuda:0",
+    "values": "all zeros"
+  },
+  "run_completed": true,
   "acceptance": {
     "ok": false,
-    "passed": 1,
+    "passed": 11,
     "total": 12,
     "checks": [
       {
         "id": 1,
         "name": "run reached the end without exception",
-        "ok": false,
-        "detail": "status=VRAM_TELEMETRY_UNAVAILABLE error=device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation: nvidia-smi missing, non-zero exit, unparsable output, or timeout; aborting without building any scene"
+        "ok": true,
+        "detail": "status=RUNNING error=None"
       },
       {
         "id": 2,
         "name": "backend resolved to physx_cuda",
-        "ok": false,
-        "detail": "resolved=None"
+        "ok": true,
+        "detail": "resolved=physx_cuda"
       },
       {
         "id": 3,
         "name": "gpu_sim_enabled is True",
-        "ok": false,
-        "detail": "gpu_sim_enabled=None"
+        "ok": true,
+        "detail": "gpu_sim_enabled=True"
       },
       {
         "id": 4,
@@ -74,66 +324,57 @@
       {
         "id": 5,
         "name": "action shape == [1, 8]",
-        "ok": false,
-        "detail": "actual_shape=[]"
+        "ok": true,
+        "detail": "actual_shape=[1, 8]"
       },
       {
         "id": 6,
         "name": "exactly 3 steps recorded",
-        "ok": false,
-        "detail": "len(steps)=0"
+        "ok": true,
+        "detail": "len(steps)=3"
       },
       {
         "id": 7,
         "name": "no termination in any step",
-        "ok": false,
-        "detail": "terminated=[]"
+        "ok": true,
+        "detail": "terminated=[0, 0, 0]"
       },
       {
         "id": 8,
         "name": "no truncation in any step",
-        "ok": false,
-        "detail": "truncated=[]"
+        "ok": true,
+        "detail": "truncated=[0, 0, 0]"
       },
       {
         "id": 9,
         "name": "elapsed_steps == [1, 2, 3]",
-        "ok": false,
-        "detail": "elapsed_steps=[]"
+        "ok": true,
+        "detail": "elapsed_steps=[1, 2, 3]"
       },
       {
         "id": 10,
         "name": "device-level VRAM telemetry present (before/after/every step)",
-        "ok": false,
-        "detail": "before=False after=False step_samples=[]"
+        "ok": true,
+        "detail": "before=True after=True step_samples=[4043, 4043, 4043]"
       },
       {
         "id": 11,
         "name": "device free after run >= abort threshold 1536 MiB",
-        "ok": false,
-        "detail": "free_after=None"
+        "ok": true,
+        "detail": "free_after=4043"
       },
       {
         "id": 12,
         "name": "wall clock < min(120s external, 100s internal)",
         "ok": true,
-        "detail": "elapsed_s=0.111"
+        "detail": "elapsed_s=35.012"
       }
     ],
     "failed_ids": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11
+      4
     ]
   },
-  "gate_failure_reason": "#1 run reached the end without exception (status=VRAM_TELEMETRY_UNAVAILABLE error=device-level VRAM telemetry is mandatory for Stage A0 and could not be read before env creation: nvidia-smi missing, non-zero exit, unparsable output, or timeout; aborting without building any scene); #2 backend resolved to physx_cuda (resolved=None); #3 gpu_sim_enabled is True (gpu_sim_enabled=None); #4 max_episode_steps == 50 (max_episode_steps=None); #5 action shape == [1, 8] (actual_shape=[]); #6 exactly 3 steps recorded (len(steps)=0); #7 no termination in any step (terminated=[]); #8 no truncation in any step (truncated=[]); #9 elapsed_steps == [1, 2, 3] (elapsed_steps=[]); #10 device-level VRAM telemetry present (before/after/every step) (before=False after=False step_samples=[]); #11 device free after run >= abort threshold 1536 MiB (free_after=None)",
-  "finished_wall": "2026-10-21T12:56:35+0900"
+  "gate_failure_reason": "#4 max_episode_steps == 50 (max_episode_steps=None)",
+  "error": "#4 max_episode_steps == 50 (max_episode_steps=None)",
+  "finished_wall": "2026-10-21T15:40:10+0900"
 }

@@ -1,7 +1,7 @@
 # M2 GPU Probe — Repair Report (Stage A0 ready, nothing executed)
 
-> 日期 2026-10-21 · 状态 **PROBE_REPAIRED / STATIC_CHECKS_PASS / A0_ATTEMPTED_ONCE_BLOCKED_ON_GPU_VISIBILITY / A1_NOT_AUTHORIZED**
-> 执行记录见 §7：A0 已按批准命令跑过**一次**，在建场景之前被强制遥测闸拦下（退出码 8），本轮 session 内无 `/dev/nvidia*`。
+> 日期 2026-10-21 · 状态 **PROBE_REPAIRED / STATIC_CHECKS_PASS / A0_RAN_ON_HOST_11-of-12 (horizon walker bug) / PHYSX_CUDA_BUILT_OK / A1_NOT_AUTHORIZED**
+> 执行记录见 §7：12:58 agent 侧一次建场景前被遥测闸拦下（退出码 8）；15:41 研究者在本机终端跑通 `physx_cuda`，3 步全部完成，但**验收门第 4 条**因脚本遍历 bug 判失败（11/12），已修复，等待最后一次重跑确认。
 > 依据：`docs/M2_INDEPENDENT_REVIEW.md`（6 项阻塞缺陷）、本文件（逐项修复对照）
 > 上游锁定不变：ManiSkill `3.0.1` @ `a4a4f9272ad64b1564035874b605ceb687b63ed8`，SAPIEN `3.0.0`，torch `2.5.1`
 > **本轮没有执行任何 GPU 仿真、没有安装任何依赖、没有创建过 CUDA context。**
@@ -345,6 +345,51 @@ exit=8
 - **没有证明**：`physx_cuda` 能否建场景、能否 reset、能否走 3 步、显存占用多少。
   **A0 依然是 NOT PASSED**，M2 的 `PHYSX_CUDA_UNVERIFIED` 状态不变。
 
+### 7.2b 15:41 研究者终端执行：`physx_cuda` 真的建起来了（11/12）
+
+研究者在自己终端按批准命令执行。**环境层面全部通过**，只有第 4 条验收判据失败——原因是脚本 bug，不是环境问题。
+
+```
+[vram] telemetry verdict=AVAILABLE :: memory.free=5654 MiB
+[vram] preflight verdict=OK
+Downloading PhysX GPU library to ~/.sapien/physx/105.1-physx-5.3.1.patch0 from Github ... Download complete.
+step1 reward=0.062328 terminated=0 truncated=0 elapsed_steps=1 vram_free=4043
+step2 reward=0.062328 terminated=0 truncated=0 elapsed_steps=2 vram_free=4043
+step3 reward=0.062328 terminated=0 truncated=0 elapsed_steps=3 vram_free=4043
+acceptance: 11/12 passed, failed_ids=[4]
+status=GATE_FAILED elapsed=35.082s   exit=9
+```
+
+| 证据 | 值 | 说明 |
+|---|---|---|
+| `versions` | mani_skill **3.0.1** / sapien **3.0.0** / torch **2.5.1+cu121** / gymnasium 1.1.1 | pinned 未被改动 |
+| `backend` | `physx_cuda` / `gpu_sim_enabled=True` / `sim_device=cuda:0` | **后端确实在 GPU 上**，不是 `auto` 落到 CPU |
+| `action` | `[1, 8]`，float32，`cuda:0` | 正确分批 |
+| `steps` | 3 步，`terminated=truncated=0`，`elapsed_steps=1,2,3` | 无回合边界 |
+| `reset` | seed 0，`elapsed_steps=0`，info 含 `success/is_grasped/is_obj_placed/is_robot_static` | 复位正确 |
+| **显存（设备级）** | used **2165 → 3775 MiB**，free **5654 → 4043 MiB** | **单个 GPU 场景约 1.6 GiB** |
+| **显存（torch 分配器）** | peak alloc **8.2 MiB** / reserved 22.0 MiB | **差 200 倍**——这正是"不能用 torch 分配量估算 PhysX 占用"的实证 |
+| 计时 | import 7.96 s，build **26.67 s**（含 226 MB 库下载），reset 0.054 s，step 0.055/0.016/0.016 s | 建场景是主要成本 |
+
+**唯一失败项**：`#4 max_episode_steps == 50`，`detail=max_episode_steps=None`，
+且 `wrapper_chain` 只记到 `["ManiSkillVectorEnv"]`。
+
+### 7.2c 根因：`ManiSkillVectorEnv` 用 `._env` 而不是 `.env`
+
+`vector/wrappers/gymnasium.py:46-48` 把内层环境存在 `self._env`；而 `episode_horizon()` 只沿
+`getattr(cur, "env")` 下探，于是在向量包装器处就停了，永远走不到
+`TimeLimitWrapper._max_episode_steps`（那里才是真正的 50）。
+
+M1 的脚本直接遍历 `gym.make` 的返回值（`TimeLimitWrapper → OrderEnforcing → PickCubeEnv`），没有向量包装器，
+所以当时能读到 50；A0 为了拿到 auto-reset 语义额外套了 `ManiSkillVectorEnv`，正好踩中这个差异。
+
+**修复**：新增 `_inner_wrapper()`，依次尝试 `.env` 与 `._env`；`episode_horizon()` 改为返回
+`(horizon, chain, source)`，把"哪一层给出的数字"写进 `backend.horizon_source`，避免只断言不溯源。
+自测新增两个用例：`_V(_W(_W(steps=50)))` 必须读出 50，且 chain 必须是 `['_V','_W','_W']`。
+
+**注意**：这条 bug 是被验收门抓住的——如果沿用第一版"跑完就 PASS"，这次会得到一个
+`max_episode_steps=None` 却标记成功的假结论。验收门按设计发挥了作用。
+
 ### 7.3 15:22 复核：桌面能看见，agent 会话仍然看不见（命名空间级分裂）
 
 研究者在自己终端于 15:22:42 跑 `nvidia-smi` + `ls -l /dev/nvidia*`，结果**正常**：
@@ -402,3 +447,22 @@ echo "exit=${PIPESTATUS[0]}"
 两条路径都不需要改代码：同一份脚本在 GPU 可见时按 12 条判据给出 PASS/FAIL，不可见时以退出码 8 拒绝。
 
 脚本无需改动：同一份代码在 GPU 可见时按 12 条判据给出 PASS/FAIL，不可见时以退出码 8 拒绝。
+
+### 7.4 现在缺什么：一次重跑
+
+脚本已修好（static gate：29 审计 + 36 A0 自测 + 19 A1 自测，0 失败），但 `results/m2_gpu_smoke_a0.json`
+仍是修复前那次 11/12 的结果。要拿到合法 PASS，需要再跑一次同样命令（PhysX GPU 库已缓存，build 会明显变快）。
+重跑命令与 §7.3 路径一完全相同；预期 `acceptance: 12/12`、`status=PASS`、`exit=0`、
+`backend.horizon_source="TimeLimitWrapper"`、`max_episode_steps=50`。
+
+### 7.5 一次计划外但已记录的下载
+
+SAPIEN 在**首次使用 `physx_cuda`** 时自动从 GitHub 下载了 PhysX GPU 运行库：
+
+```
+~/.sapien/physx/105.1-physx-5.3.1.patch0/libPhysXGpu_64.so   226 MB
+```
+
+这不是 pip 安装，也不由本仓库脚本发起，但确实是一次网络下载，**必须记在这里**：
+"不下载 checkpoint / 不装依赖"的约束没有被破坏（没有 Python 包被安装、没有模型权重），
+但"零下载"的表述从此不再准确。今后任何 GPU 首跑都要预留这 226 MB 与数分钟等待。

@@ -24,14 +24,14 @@
     {
       "script": "scripts/m2_gpu_smoke_a0.py",
       "returncode": 0,
-      "passed": 33,
+      "passed": 36,
       "failed": 0,
       "ok": true
     },
     {
       "script": "scripts/m2_gpu_sim_probe.py",
       "returncode": 0,
-      "passed": 18,
+      "passed": 19,
       "failed": 0,
       "ok": true
     }
