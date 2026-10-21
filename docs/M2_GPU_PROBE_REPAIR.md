@@ -1,10 +1,10 @@
-# M2 GPU Probe — Repair Report (Stage A0 ready, nothing executed)
+# M2 GPU Probe — Repair Report (Stage A0 PASSED, 12/12)
 
-> 日期 2026-10-21 · 状态 **PROBE_REPAIRED / STATIC_CHECKS_PASS / A0_RAN_ON_HOST_11-of-12 (horizon walker bug) / PHYSX_CUDA_BUILT_OK / A1_NOT_AUTHORIZED**
-> 执行记录见 §7：12:58 agent 侧一次建场景前被遥测闸拦下（退出码 8）；15:41 研究者在本机终端跑通 `physx_cuda`，3 步全部完成，但**验收门第 4 条**因脚本遍历 bug 判失败（11/12），已修复，等待最后一次重跑确认。
+> 日期 2026-10-21 · 状态 **A0 PASSED (12/12, exit 0) / PHYSX_CUDA_VERIFIED_FOR_1_ENV / A1_NOT_AUTHORIZED**
+> 执行记录见 §7：12:58 agent 侧被遥测闸拦下（退出码 8）；15:41 主机侧跑通 `physx_cuda` 但 horizon 遍历 bug 导致 11/12；修复后 15:44 重跑 **12/12 PASS（3.496 s）**，`horizon_source=TimeLimitWrapper`、`max_episode_steps=50`。
 > 依据：`docs/M2_INDEPENDENT_REVIEW.md`（6 项阻塞缺陷）、本文件（逐项修复对照）
 > 上游锁定不变：ManiSkill `3.0.1` @ `a4a4f9272ad64b1564035874b605ceb687b63ed8`，SAPIEN `3.0.0`，torch `2.5.1`
-> **本轮没有执行任何 GPU 仿真、没有安装任何依赖、没有创建过 CUDA context。**
+> **已执行的只有 Stage A0（1 env / 3 步 / ≤120 s，12/12 PASS）；A1 并行扫描未运行、未获授权；没有安装任何 Python 包、没有训练。**
 
 ---
 
@@ -448,12 +448,35 @@ echo "exit=${PIPESTATUS[0]}"
 
 脚本无需改动：同一份代码在 GPU 可见时按 12 条判据给出 PASS/FAIL，不可见时以退出码 8 拒绝。
 
-### 7.4 现在缺什么：一次重跑
+命令与批准版逐字一致（`timeout 120` / `--budget-seconds 100` / 1 env / 3 步 / seed 0）。结果：
 
-脚本已修好（static gate：29 审计 + 36 A0 自测 + 19 A1 自测，0 失败），但 `results/m2_gpu_smoke_a0.json`
-仍是修复前那次 11/12 的结果。要拿到合法 PASS，需要再跑一次同样命令（PhysX GPU 库已缓存，build 会明显变快）。
-重跑命令与 §7.3 路径一完全相同；预期 `acceptance: 12/12`、`status=PASS`、`exit=0`、
-`backend.horizon_source="TimeLimitWrapper"`、`max_episode_steps=50`。
+```
+[vram] telemetry verdict=AVAILABLE :: memory.free=5592 MiB
+[vram] preflight verdict=OK
+step1 reward=0.062328 elapsed_steps=1  step2 …=2  step3 …=3
+acceptance: 12/12 passed, failed_ids=[]
+status=PASS elapsed=3.496s  exit=0
+```
+
+| 判据 | 值 |
+|---|---|
+| `backend` | `physx_cuda` / `gpu_sim_enabled=True` / `sim_device=cuda:0` / `num_envs=1` |
+| `wrapper_chain` | `["ManiSkillVectorEnv", "TimeLimitWrapper", "OrderEnforcing", "PickCubeEnv"]` |
+| `horizon_source` | **`TimeLimitWrapper`**，`max_episode_steps=50` ← bug 已证实修复 |
+| `action` | `[1, 8]` float32 `cuda:0` |
+| 三步 | `elapsed_steps=[1,2,3]`，`terminated=[0,0,0]`，`truncated=[0,0,0]` |
+| 设备级显存 | used **2227 → 3591 MiB**（场景约 **1.33 GiB**），free 5592 → 4228 |
+| torch 分配器 | peak alloc **8.2 MiB** / reserved 22.0 MiB（再次相差约 170 倍） |
+| 计时 | import 2.164 s / **build 1.035 s** / reset 0.010 s / step 0.018-0.016-0.016 s / cleanup 0.068 s |
+
+**库缓存的效果**：build 从 26.671 s 降到 **1.035 s**，说明第一次那 26 s 几乎全是 226 MB 下载。
+
+**可复现性**：与 15:41 那次逐项一致——奖励 `0.062328`×3，obs `sum` = `3.991216 / 4.098909 / 4.164279`，
+`absmax` = 2.336649。seed 0 + 零动作下确定性成立，这是"同一份代码跑出同一结果"的第一份证据。
+
+**A0 的边界仍然要说清楚**：只证明"1 个环境能在 CUDA PhysX 上建、reset、走 3 步"。
+它**不**证明 16-512 并行的显存与吞吐，**不**证明训练可跑，**不**证明收敛。单场景 1.33 GiB 也**不能**线性外推到 N 个环境
+（PhysX 的 per-env 边际成本远小于首个场景的固定开销），那正是 A1 要测的东西——而 A1 尚未获批。
 
 ### 7.5 一次计划外但已记录的下载
 
