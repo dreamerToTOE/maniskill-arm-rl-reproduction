@@ -143,6 +143,10 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 > **审计发现（2026-10-21）**：`ppo.py:195` 把 `render_mode="rgb_array"` **硬编码**在 `env_kwargs` 里，
 > 且没有对应 CLI 开关。所以 Stage B 一定带渲染，A1（`render_mode=None`）的 3931 MiB 峰值**不能**直接套用，
 > 显存会更高。这是本阶段最大的未知风险，也是 1536 MiB 运行闸存在的理由。
+>
+> **实测（attempt 1，2026-10-21 20:51）**：峰值 **4937 MiB**，比 A1 的 3931 MiB **高 1006 MiB（+26%）**，
+> 上述预判成立；free 最低 2882 MiB，离 1536 MiB 闸门很远。同轮得到 **e2e 1516.8 SPS / loop 2563**，
+> 29/40 iteration（被监督器的 stdout 缓冲 bug 误杀，非训练失败）。详见 `docs/M2_STAGE_B_EXECUTION_REPORT.md`。
 
 ### 明确不能从这个 pilot 得出的结论
 

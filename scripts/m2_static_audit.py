@@ -203,7 +203,9 @@ class Audit:
                 self.check("stage B kills on a VRAM floor and a wall clock",
                            "min_free_mib" in self.src and "wall_limit" in self.src)
                 self.check("stage B has no retry path",
-                           "while True" not in self.src and "attempt" not in self.src.lower())
+                           "while True" not in self.src
+                           and "for attempt" not in self.src
+                           and "Popen(" in self.src and self.src.count("Popen(") == 1)
                 self.check("stage B never imports torch (monitor only)", "torch" not in mods)
             return
 

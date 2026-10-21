@@ -61,6 +61,7 @@ TOTAL_TIMESTEPS = 256000
 UPDATE_EPOCHS = 4
 NUM_MINIBATCHES = 32
 NUM_EVAL_ENVS = 8
+NUM_EVAL_STEPS = 50
 EVAL_FREQ = 5
 SEED = 9351
 
@@ -69,6 +70,11 @@ MIN_FREE_MIB = 1536
 START_FREE_MIB = 3072
 STORAGE_LIMIT_MB = 300
 NO_PROGRESS_S = 120.0
+# The 120 s rule applies to the *loop*. Before the first iteration the child is
+# still importing, building two PhysX scenes and compiling render targets, which
+# produced ~40 s here and 26 s on the very first A0 run; a 300 s grace covers that
+# without weakening the loop rule. The 1200 s wall clock still bounds everything.
+STARTUP_GRACE_S = 300.0
 POLL_S = 2.0
 SMI_EVERY_S = 5.0
 
@@ -78,6 +84,17 @@ EXIT_VIOLATION = 9
 EXIT_ERROR = 5
 
 
+def evals_done(iters: int) -> int:
+    """How many evaluations happened after `iters` iterations.
+
+    Upstream evaluates (and saves) when `iteration % eval_freq == 1`
+    (ppo.py:276,297), not `== 0`. So 40 iterations give 8 evaluations
+    (1,6,...,36) and 29 give 6. Using `iters // eval_freq` undercounts by one
+    whenever the run is cut between the first and last aligned iteration.
+    """
+    return 0 if iters < 1 else (iters - 1) // EVAL_FREQ + 1
+
+
 def blob_sha1(path: Path) -> str:
     raw = path.read_bytes()
     return hashlib.sha1(b"blob %d\0" % len(raw) + raw).hexdigest()
@@ -85,9 +102,15 @@ def blob_sha1(path: Path) -> str:
 
 def build_argv(python: str, ppo: Path) -> list[str]:
     """The exact upstream CLI. Tyro is kebab-case: --no-capture-video, not
-    --capture_video=False (that would be an argparse error before training)."""
+    --capture_video=False (that would be an argparse error before training).
+
+    `-u` is a launcher-level flag, not a change to ppo.py: without it Python
+    block-buffers stdout when it is a pipe, so nothing reaches the supervisor and
+    the liveness watchdog cannot tell a working run from a hung one. That cost one
+    killed attempt on 2026-10-21 (29 iterations had actually completed).
+    """
     return [
-        python, str(ppo),
+        python, "-u", str(ppo),
         "--env-id", "PickCube-v1",
         "--exp-name", EXP_NAME,
         "--num-envs", str(NUM_ENVS),
@@ -105,14 +128,20 @@ def build_argv(python: str, ppo: Path) -> list[str]:
 
 
 def parse_progress(line: str, state: dict[str, Any]) -> None:
-    """Turn ppo.py's stdout into a liveness signal. Pure, so it is testable."""
+    """Turn ppo.py's stdout into a liveness signal. Pure, so it is testable.
+
+    Any non-empty line counts as liveness; the `Epoch:` line additionally yields
+    the iteration number. Only liveness matters for the kill switch, and using
+    every line keeps a long evaluation from being mistaken for a hang.
+    """
     text = line.strip()
+    if text:
+        state["last_progress"] = time.monotonic()
     if text.startswith("Epoch:"):
         try:
             state["iteration"] = int(text.split("Epoch:")[1].split(",")[0].strip())
         except (IndexError, ValueError):
             pass
-        state["last_progress"] = time.monotonic()
     elif text.startswith("SPS:"):
         try:
             state["loop_sps"] = int(float(text.split("SPS:")[1].strip()))
@@ -223,6 +252,7 @@ def run_self_test() -> int:
 
     argv = build_argv("/py", Path("/tmp/ppo.py"))
     joined = " ".join(argv)
+    check("argv runs the child unbuffered (-u)", argv[1] == "-u", str(argv[:3]))
     check("argv pins num-envs 128", "--num-envs 128" in joined)
     check("argv has total-timesteps 256000", "--total-timesteps 256000" in joined)
     check("argv has eval-freq 5", "--eval-freq 5" in joined)
@@ -237,16 +267,24 @@ def run_self_test() -> int:
     check("argv keeps seed 9351 and 8 eval envs",
           "--seed 9351" in joined and "--num-eval-envs 8" in joined)
 
-    state: dict[str, Any] = {"last_progress": 0.0}
+    check("eval count follows iteration % eval_freq == 1",
+          evals_done(40) == 8 and evals_done(29) == 6 and evals_done(1) == 1
+          and evals_done(0) == 0,
+          f"{evals_done(40)} {evals_done(29)} {evals_done(1)} {evals_done(0)}")
+    state: dict[str, Any] = {"last_progress": None}
+    check("no liveness before any output", state["last_progress"] is None)
     parse_progress("Epoch: 7, global_step=38400", state)
     check("progress parser reads iteration", state.get("iteration") == 7, str(state.get("iteration")))
-    check("progress parser marks liveness", state["last_progress"] > 0)
+    check("progress parser marks liveness", state["last_progress"] is not None)
     parse_progress("SPS: 3120", state)
     check("progress parser reads loop SPS", state.get("loop_sps") == 3120)
     parse_progress("eval_success_once_mean=0.125", state)
     check("progress parser reads eval success", abs(state.get("eval_success") - 0.125) < 1e-9)
+    before = state["last_progress"]
+    time.sleep(0.01)
     parse_progress("some unrelated line", state)
-    check("parser ignores unrelated lines", state.get("iteration") == 7)
+    check("any output counts as liveness", state["last_progress"] > before)
+    check("parser ignores unrelated lines for iteration", state.get("iteration") == 7)
 
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -268,6 +306,56 @@ def run_self_test() -> int:
     return EXIT_OK if not failures else 1
 
 
+def harvest(summary_path: Path, run_dir: Path) -> int:
+    """Re-derive the metrics from what is on disk, without training anything.
+
+    Needed because a killed child loses its buffered stdout while the TensorBoard
+    events and checkpoints survive. The event file is therefore the authority for
+    iteration count and losses; the surviving summary supplies wall clock and VRAM.
+    """
+    summary: dict[str, Any] = {}
+    if summary_path.is_file():
+        try:
+            summary = json.loads(summary_path.read_text())
+        except json.JSONDecodeError:
+            summary = {}
+    scalars = read_scalars(run_dir)
+    steps_seen = [s.get("last_step") for s in scalars.values()
+                  if isinstance(s, dict) and s.get("last_step")]
+    iters = max(steps_seen) // (NUM_ENVS * NUM_STEPS) if steps_seen else 0
+    wall = summary.get("wall_s")
+    summary["tensorboard"] = scalars
+    summary["checkpoints"] = checkpoints(run_dir) if run_dir.exists() else {"count": 0}
+    summary["storage_mb"] = dir_size_mb(run_dir) if run_dir.exists() else 0.0
+    summary["iterations_from_events"] = iters
+    summary["iterations_completed"] = iters
+    summary["steps"] = {
+        "train_env_steps": iters * NUM_ENVS * NUM_STEPS,
+        "eval_env_steps": evals_done(iters) * NUM_EVAL_ENVS * NUM_EVAL_STEPS,
+        "optimizer_updates_upper_bound": iters * UPDATE_EPOCHS * NUM_MINIBATCHES,
+        "note": "derived from the event file after a kill; stdout was lost to buffering",
+    }
+    summary["sps"] = {
+        "end_to_end": round(iters * NUM_ENVS * NUM_STEPS / wall, 1)
+        if isinstance(wall, (int, float)) and wall > 0 else None,
+        "loop_from_tensorboard": (scalars.get("charts/SPS") or {}).get("last")
+        if scalars.get("present") else None,
+        "definition": ("end_to_end = train_env_steps / wall clock of the whole child; "
+                       "the loop figure excludes import and scene build"),
+    }
+    summary["harvested"] = True
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = summary_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, summary_path)
+    print(json.dumps({"iterations": iters, "wall_s": wall,
+                      "end_to_end_sps": summary["sps"]["end_to_end"],
+                      "loop_sps": summary["sps"]["loop_from_tensorboard"],
+                      "checkpoints": summary["checkpoints"].get("count"),
+                      "status": summary.get("status")}, indent=2))
+    return EXIT_OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Stage B: one bounded upstream-PPO pilot with kill switches.")
@@ -281,9 +369,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--start-free-mib", type=int, default=START_FREE_MIB)
     p.add_argument("--storage-mb", type=int, default=STORAGE_LIMIT_MB)
     p.add_argument("--no-progress-s", type=float, default=NO_PROGRESS_S)
+    p.add_argument("--startup-grace", type=float, default=STARTUP_GRACE_S,
+                   help="allowance before the FIRST output line; covers import + two "
+                        "PhysX scene builds. The 120 s rule applies to the loop after that")
     p.add_argument("--skip-blob-check", action="store_true",
                    help="only for the self-test path; a real run must verify the blob")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--harvest", action="store_true",
+                   help="do not train: rebuild the metrics of an existing run from its "
+                        "TensorBoard events, checkpoints and the surviving summary")
     p.add_argument("--self-test", action="store_true")
     return p
 
@@ -292,6 +386,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.self_test:
         return run_self_test()
+    if args.harvest:
+        return harvest(args.summary, args.runs_dir / EXP_NAME)
 
     cfg = {
         "stage": "B", "classification": "ADAPTATION / PLUMBING_ONLY",
@@ -372,9 +468,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- launch ------------------------------------------------------------
     t0 = time.monotonic()
+    child_env = dict(os.environ, PYTHONUNBUFFERED="1")
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, bufsize=1)
-    state: dict[str, Any] = {"last_progress": time.monotonic()}
+                            text=True, bufsize=1, env=child_env)
+    state: dict[str, Any] = {"last_progress": None}
     vram_samples: list[int] = []
     vram_peak: list[int] = []
     kill_reason: str | None = None
@@ -387,6 +484,10 @@ def main(argv: list[str] | None = None) -> int:
             now = time.monotonic()
             if now - t0 > args.wall_limit:
                 kill_reason = f"wall clock {args.wall_limit:.0f}s exceeded"
+            elif state["last_progress"] is None:
+                if now - t0 > args.startup_grace:
+                    kill_reason = (f"no output at all within {args.startup_grace:.0f}s "
+                                   "(startup: import + scene build)")
             elif now - state["last_progress"] > args.no_progress_s:
                 kill_reason = f"no iteration progress for {args.no_progress_s:.0f}s"
             elif now - last_smi >= SMI_EVERY_S:
@@ -438,7 +539,6 @@ def main(argv: list[str] | None = None) -> int:
     summary["wall_s"] = wall
     summary["returncode"] = proc.returncode
     summary["loop_sps_last"] = state.get("loop_sps")
-    summary["iterations_completed"] = state.get("iteration", 0)
     try:
         scalars = read_scalars(run_dir)
     except Exception as exc:  # noqa: BLE001
@@ -453,9 +553,20 @@ def main(argv: list[str] | None = None) -> int:
     summary["checkpoints"] = checkpoints(run_dir) if run_dir.exists() else {"count": 0}
     summary["storage_mb"] = dir_size_mb(run_dir) if run_dir.exists() else 0.0
 
-    iters_done = state.get("iteration", 0)
+    iters_stdout = state.get("iteration", 0)
+    iters_tb = 0
+    if scalars.get("present"):
+        steps = [s.get("last_step") for s in scalars.values()
+                 if isinstance(s, dict) and s.get("last_step")]
+        if steps:
+            iters_tb = max(steps) // (NUM_ENVS * NUM_STEPS)
+    # The event file is the authoritative record: stdout can be truncated by a kill.
+    iters_done = max(iters_stdout, iters_tb)
+    summary["iterations_stdout"] = iters_stdout
+    summary["iterations_from_events"] = iters_tb
+    summary["iterations_completed"] = iters_done
     train_steps = iters_done * NUM_ENVS * NUM_STEPS
-    evals = iters_done // EVAL_FREQ if iters_done else 0
+    evals = evals_done(iters_done)
     summary["steps"] = {
         "train_env_steps": train_steps,
         "eval_env_steps": evals * NUM_EVAL_ENVS * 50,

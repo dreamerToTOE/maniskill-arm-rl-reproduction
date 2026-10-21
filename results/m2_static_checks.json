@@ -57,7 +57,7 @@
     {
       "script": "scripts/m2_stage_b_pilot.py",
       "returncode": 0,
-      "passed": 17,
+      "passed": 21,
       "failed": 0,
       "ok": true
     }
