@@ -345,10 +345,60 @@ exit=8
 - **没有证明**：`physx_cuda` 能否建场景、能否 reset、能否走 3 步、显存占用多少。
   **A0 依然是 NOT PASSED**，M2 的 `PHYSX_CUDA_UNVERIFIED` 状态不变。
 
+### 7.3 15:22 复核：桌面能看见，agent 会话仍然看不见（命名空间级分裂）
+
+研究者在自己终端于 15:22:42 跑 `nvidia-smi` + `ls -l /dev/nvidia*`，结果**正常**：
+
+```
+/dev/nvidia{0,ctl,-modeset,-uvm,-uvm-tools}  crw-rw-rw-  timestamps 10月21 09:57
+RTX 3070  2501 MiB / 8192 MiB used（Xorg 870 + gnome-shell 325 + WorkBuddy 305 + firefox 232 + ...）
+free = 5691 MiB
+```
+
+同一时刻（15:24）在 agent 会话里做同样的只读检查，结果**相反**：
+
+| 检查 | agent 会话 |
+|---|---|
+| `ls -l /dev/nvidia*` | `No such file or directory` |
+| `nvidia-smi --query-gpu=...` | rc=**9**，`couldn't communicate with the NVIDIA driver` |
+| venv `torch.cuda.is_available()` | **False**，`device_count=0` |
+| **关闭沙箱后重测** | **完全相同**（所以不是沙箱策略） |
+
+再往下追一层，根因是**命名空间**而不是权限或驱动：
+
+| 证据 | 含义 |
+|---|---|
+| `echo $$` → **1** | agent shell 在自己的 **PID 命名空间**里，不是宿主会话 |
+| `/proc/self/cgroup` → `app-gnome-workbuddy-64349.scope` | 与 `nvidia-smi` 里那个 WorkBuddy（pid 41822）**不是同一个实例** |
+| `readlink /proc/2440/ns/mnt`、`/proc/41822/ns/mnt` → 空 | 看不到宿主进程，进一步印证 PID ns 隔离 |
+| `/proc/41822/root/dev/nvidia*` → 不存在 | 也无法借别的进程的 root 访问设备节点 |
+| `systemd-run --user ...` → `Failed to connect to bus` | 无法借用户 systemd 会话跳出该命名空间 |
+
+**结论**：这台机器的 GPU 是好的、驱动是好的、设备节点在宿主上是好的；
+是**本 agent 会话被创建时没有绑定 `/dev/nvidia*`**。可见性按"应用实例/会话"决定，而不是按机器决定——
+这同时解释了 09:57（有）→ 10:27（有）→ 12:58（无）→ 15:24（无）的翻转。
+
+**本轮没有再跑 A0**：结果可以确定是同一个退出码 8，而 12:58 那次已经把"恰好一次"的授权用掉了；
+在没有新的 GPU 可见性之前重跑只会消耗授权而不产生新信息。
+
 ### 7.3 恢复路径（需要研究者操作，不需要改代码）
 
-1. 在你自己的桌面终端确认 `nvidia-smi` 正常（那里一直是可用的）；
-2. 重开一次宿主应用/会话，让新进程重新拿到 `/dev/nvidia*`（10-21 09:57 那次就是这么恢复的）；
-3. 恢复后用 `ls -l /dev/nvidia*` + `nvidia-smi` 复核，再**重新批准一次** A0（因为"恰好一次"已经用掉）。
+**路径一（推荐，最快）：你在自己的桌面终端跑 A0。** 你的终端有 `/dev/nvidia*`，free 5691 MiB ≥ 3072 MiB 闸值。
+命令与批准版逐字一致，一次跑完，把 JSON + 日志贴回来我按 12 条判据判定：
+
+```bash
+cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+timeout --signal=TERM --kill-after=10s 120 \
+  ./.venv-maniskill/bin/python scripts/m2_gpu_smoke_a0.py \
+    --env-id PickCube-v1 --robot panda --seed 0 --steps 3 \
+    --budget-seconds 100 --min-free-mib 3072 --abort-free-mib 1536 \
+    --output results/m2_gpu_smoke_a0.json 2>&1 | tee results/raw/m2_gpu_smoke_a0.log
+echo "exit=${PIPESTATUS[0]}"
+```
+
+**路径二：重启 WorkBuddy，让新会话重新拿到设备节点。** 09:57 那次就是这样恢复的；
+重启后先 `ls -l /dev/nvidia*` 复核，再**重新批准一次** A0 由我来跑（"恰好一次"已经用掉）。
+
+两条路径都不需要改代码：同一份脚本在 GPU 可见时按 12 条判据给出 PASS/FAIL，不可见时以退出码 8 拒绝。
 
 脚本无需改动：同一份代码在 GPU 可见时按 12 条判据给出 PASS/FAIL，不可见时以退出码 8 拒绝。
