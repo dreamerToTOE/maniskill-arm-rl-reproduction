@@ -70,6 +70,34 @@ def smi() -> dict:
             "stdout": proc.stdout.strip(), "stderr": proc.stderr.strip()[:200]}
 
 
+def smi_compute_apps() -> list[dict]:
+    """Processes currently holding GPU memory - i.e. possible interference."""
+    exe = shutil.which("nvidia-smi")
+    if not exe:
+        return []
+    try:
+        proc = subprocess.run(
+            [exe, "--query-compute-apps=pid,process_name,used_memory",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, check=False,
+        )
+        if proc.returncode != 0:
+            return []
+        apps = []
+        for line in proc.stdout.strip().splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 3:
+                continue
+            try:
+                used: int | None = int(float(parts[2]))
+            except ValueError:
+                used = None
+            apps.append({"pid": parts[0], "process": parts[1], "used_mib": used})
+        return apps
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def dev_nodes() -> list[str]:
     return sorted(str(p) for p in Path("/dev").glob("nvidia*"))
 

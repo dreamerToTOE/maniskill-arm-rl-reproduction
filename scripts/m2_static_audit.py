@@ -88,9 +88,20 @@ PER_FILE_REQUIRED = {
         "summarize",
         "preflight_gpu",
     },
+    "m2_stage_b_pilot.py": {
+        "build_argv",
+        "parse_progress",
+        "read_scalars",
+        "checkpoints",
+        "dir_size_mb",
+        "blob_sha1",
+    },
 }
 # Scripts that never build an env: skip the gym.make / action / watchdog checks.
-NO_ENV_SCRIPTS = {"m2_a1_run_all.py"}
+NO_ENV_SCRIPTS = {"m2_a1_run_all.py", "m2_stage_b_pilot.py"}
+# Reading tensorboard *events* is not the same as importing the training stack:
+# the Stage B supervisor parses what PPO already wrote.
+ALLOWED_MODULES = {"m2_stage_b_pilot.py": {"tensorboard"}}
 REQUIRED_STRINGS = ("nvidia-smi", "physx_cuda")
 
 
@@ -142,7 +153,12 @@ class Audit:
                 self.check("compiles under pinned interpreter", False, str(exc)[:200])
 
         mods = self.imported_modules()
-        bad_mods = sorted(m for m in mods if any(m == b or m.startswith(b + ".") for b in FORBIDDEN_MODULES))
+        allowed = ALLOWED_MODULES.get(self.path.name, set())
+        bad_mods = sorted(
+            m for m in mods
+            if any(m == b or m.startswith(b + ".") for b in FORBIDDEN_MODULES)
+            and not any(m == a or m.startswith(a + ".") for a in allowed)
+        )
         self.check("no training/logging stack imported", not bad_mods, str(bad_mods))
 
         idents = self.identifiers()
@@ -168,15 +184,27 @@ class Audit:
             self.check("required primitives present", not missing_s, str(missing_s))
 
         if self.path.name in NO_ENV_SCRIPTS:
-            self.check("launcher pins physx_cuda in its config",
-                       any("physx_cuda" in s for s in strs))
-            self.check("launcher uses an external timeout",
-                       any("timeout" in s for s in strs))
-            self.check("launcher records not-run levels after a failure",
-                       "NOT_RUN_AFTER_FAILURE" in self.src)
-            self.check("launcher has no retry loop",
-                       '"attempts": 1' in self.src and "while True" not in self.src)
-            self.check("launcher stops after the first failure", "stopped = True" in self.src)
+            if self.path.name == "m2_a1_run_all.py":
+                self.check("launcher pins physx_cuda in its config",
+                           any("physx_cuda" in s for s in strs))
+                self.check("launcher uses an external timeout",
+                           any("timeout" in s for s in strs))
+                self.check("launcher records not-run levels after a failure",
+                           "NOT_RUN_AFTER_FAILURE" in self.src)
+                self.check("launcher has no retry loop",
+                           '"attempts": 1' in self.src and "while True" not in self.src)
+                self.check("launcher stops after the first failure", "stopped = True" in self.src)
+            else:
+                self.check("stage B pins the upstream ppo.py blob",
+                           "66802de0653061da550d6600d6346be374dbf974" in self.src)
+                self.check("stage B disables video with a kebab-case flag",
+                           "--no-capture-video" in self.src)
+                self.check("stage B has a dedicated blocked exit code", "EXIT_BLOCKED" in self.src)
+                self.check("stage B kills on a VRAM floor and a wall clock",
+                           "min_free_mib" in self.src and "wall_limit" in self.src)
+                self.check("stage B has no retry path",
+                           "while True" not in self.src and "attempt" not in self.src.lower())
+                self.check("stage B never imports torch (monitor only)", "torch" not in mods)
             return
 
         make_calls = [
@@ -226,6 +254,13 @@ class Audit:
 
 
 def _arg_defaults(a: Audit) -> dict[str, object]:
+    """argparse defaults, resolving module-level constants (`default=WALL_LIMIT_S`)."""
+    consts: dict[str, object] = {}
+    for node in a.tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            tgt = node.targets[0]
+            if isinstance(tgt, ast.Name) and isinstance(node.value, ast.Constant):
+                consts[tgt.id] = node.value.value
     defaults: dict[str, object] = {}
     for node in ast.walk(a.tree):
         if not isinstance(node, ast.Call):
@@ -238,9 +273,35 @@ def _arg_defaults(a: Audit) -> dict[str, object]:
             continue
         flag = str(args[0]).lstrip("-")
         for kw in node.keywords:
-            if kw.arg == "default" and isinstance(kw.value, ast.Constant):
+            if kw.arg != "default":
+                continue
+            if isinstance(kw.value, ast.Constant):
                 defaults[flag] = kw.value.value
+            elif isinstance(kw.value, ast.Name) and kw.value.id in consts:
+                defaults[flag] = consts[kw.value.id]
     return defaults
+
+
+def audit_stage_b_specifics(a: Audit) -> None:
+    """Stage B is 128 envs / 256k steps / 1200 s / 1536 MiB; no video, no wandb."""
+    d = _arg_defaults(a)
+    a.check("Stage B wall limit default is 1200 s",
+            d.get("wall-limit") == 1200.0, str(d.get("wall-limit")))
+    a.check("Stage B VRAM floor default is 1536 MiB",
+            d.get("min-free-mib") == 1536, str(d.get("min-free-mib")))
+    a.check("Stage B start gate default is 3072 MiB",
+            d.get("start-free-mib") == 3072, str(d.get("start-free-mib")))
+    a.check("Stage B storage cap default is 300 MB",
+            d.get("storage-mb") == 300, str(d.get("storage-mb")))
+    a.check("Stage B no-progress watchdog default is 120 s",
+            d.get("no-progress-s") == 120.0, str(d.get("no-progress-s")))
+    a.check("Stage B pins 128 envs / 50 steps / 256k timesteps",
+            "NUM_ENVS = 128" in a.src and "NUM_STEPS = 50" in a.src
+            and "TOTAL_TIMESTEPS = 256000" in a.src)
+    a.check("Stage B pins eval_freq 5 and seed 9351",
+            "EVAL_FREQ = 5" in a.src and "SEED = 9351" in a.src)
+    a.check("Stage B ends with a final checkpoint expectation",
+            "final_ckpt" in a.src and "periodic" in a.src)
 
 
 def audit_a1_specifics(a: Audit) -> None:
@@ -332,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("files", nargs="*", default=["scripts/m2_gpu_smoke_a0.py",
                                                  "scripts/m2_gpu_sim_probe.py",
-                                                 "scripts/m2_a1_run_all.py"])
+                                                 "scripts/m2_a1_run_all.py",
+                                                 "scripts/m2_stage_b_pilot.py"])
     ap.add_argument("--json", type=Path, default=None,
                     help="write a machine-readable summary here")
     ap.add_argument("--no-self-test", action="store_true",
@@ -354,6 +416,8 @@ def main(argv: list[str] | None = None) -> int:
             audit_a0_specifics(a)
         if p.name == "m2_gpu_sim_probe.py":
             audit_a1_specifics(a)
+        if p.name == "m2_stage_b_pilot.py":
+            audit_stage_b_specifics(a)
         total_pass += a.passes
         failures += len(a.failures)
         per_file.append({"script": f, "passed": a.passes,

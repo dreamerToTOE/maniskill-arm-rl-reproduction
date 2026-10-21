@@ -1,6 +1,6 @@
 # M2 START HERE — PickCube official PPO baseline (study first; no training)
 
-> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / **STAGE A0 PASSED (12/12, exit 0, 3.496 s)** / STAGE A1 AUTHORIZED-BUT-BLOCKED (0 levels executed) / PHYSX-CUDA-VERIFIED-FOR-1-ENV / PARALLEL-SCALING-UNVERIFIED / THROUGHPUT-UNVERIFIED / TRAINING-NOT-RUN.**
+> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / **STAGE A0 PASSED (12/12, 3.496 s)** / **STAGE A1 PASSED (4/4, 27.706 s)** / PHYSX-CUDA-VERIFIED / PARALLEL-SCALING-MEASURED-TO-256 / SIM-THROUGHPUT-MEASURED / STAGE-B-PREPARED-NOT-EXECUTED.**
 >
 > Prerequisite: M1 PASSED at commit `d08e5870368c12644ff385e17f78068ad4bbb774`. Researcher approved **M1 isolated installation + 3-zero-action CPU smoke only**. This is not approval for M2 GPU simulation benchmarks or PPO training.
 >
@@ -10,7 +10,9 @@
 >
 > 2026-10-21 (later): the original 64→4096 Stage A sweep was **rejected** by [`M2_INDEPENDENT_REVIEW.md`](M2_INDEPENDENT_REVIEW.md) and has been repaired — see [`M2_GPU_PROBE_REPAIR.md`](M2_GPU_PROBE_REPAIR.md). Stage A is now split into **A0** (`scripts/m2_gpu_smoke_a0.py`, 1 env / 3 steps / ≤120 s, needs no new dependency) and **A1** (`scripts/m2_gpu_sim_probe.py` + `scripts/m2_a1_run_all.py`, 16/64/128/256, one isolated process per level). **A0 has been executed three times, and the third one PASSED.** 12:58: the agent session exited **8** at the VRAM-telemetry gate without building anything (no `/dev/nvidia*` there). 15:41: the researcher's terminal built the scene and stepped 3 times but the gate returned **11/12** because our horizon walker missed `ManiSkillVectorEnv._env` - a script bug. After fixing it, 15:44: **12/12, exit 0, 3.496 s**, `horizon_source=TimeLimitWrapper`, `max_episode_steps=50`, ~1.33 GiB device VRAM, torch allocator peak 8.2 MiB, and results reproducible against the 15:41 run. Details in `M2_GPU_PROBE_REPAIR.md` §7.2b-7.5.
 >
-> 2026-10-21 (A1): authorized, hardened and statically verified (51 audit + 82 self-test checks, 0 failed), then **`BLOCKED` at 16:09** — the agent session again had no usable NVIDIA nodes (only an empty `/dev/nvidia-caps`), so the launcher exited **8** with **zero levels executed**. No simulator SPS and no multi-env VRAM number exists yet. Protocol, guards and the exact command are in [`M2_A1_EXECUTION_REPORT.md`](M2_A1_EXECUTION_REPORT.md).
+> 2026-10-21 (A1): authorized, hardened and statically verified (51 audit + 82 self-test checks, 0 failed). The 16:09 agent-session attempt was `BLOCKED` (exit 8, zero levels), but the 16:18 run in the researcher's terminal **PASSED: 4/4 levels, exit 0, 27.706 s**, giving aggregate simulator SPS **905.8 / 3342.0 / 6437.4 / 11746.1** at 16/64/128/256 with scaling efficiency 1.000/0.922/0.888/0.811, and device VRAM **essentially flat** (peak 3912/3867/3931/3931 MiB, >= 4261 MiB free) — the ~1.3 GiB PhysX scene is a fixed cost. Details: [`M2_A1_EXECUTION_REPORT.md`](M2_A1_EXECUTION_REPORT.md).
+>
+> 2026-10-21 (Stage B): pilot authorized, code-audited, dependency installed (`tensorboard 2.21.0`) and a supervised one-command launcher written (`scripts/m2_stage_b_pilot.py`) — **not executed**, because the agent session still has no usable GPU (root cause: seccomp ioctl allow-list, see [`M2_GPU_VISIBILITY.md`](M2_GPU_VISIBILITY.md)). See [`M2_STAGE_B_EXECUTION_REPORT.md`](M2_STAGE_B_EXECUTION_REPORT.md).
 
 ## M2 scope and scientific claim
 

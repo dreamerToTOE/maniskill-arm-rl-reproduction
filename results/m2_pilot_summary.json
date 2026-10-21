@@ -1,0 +1,82 @@
+{
+  "kind": "m2_stage_b_pilot",
+  "stage": "B",
+  "status": "NOT_RUN",
+  "verdict": "BLOCKED",
+  "note": "No iteration was executed: the agent session has no usable GPU (seccomp ioctl allow-list). This file records the audited configuration and the frozen metric schema. Running scripts/m2_stage_b_pilot.py overwrites it with real measurements.",
+  "config": {
+    "stage": "B",
+    "classification": "ADAPTATION / PLUMBING_ONLY",
+    "env_id": "PickCube-v1",
+    "num_envs": 128,
+    "num_steps": 50,
+    "total_timesteps": 256000,
+    "update_epochs": 4,
+    "num_minibatches": 32,
+    "num_eval_envs": 8,
+    "eval_freq": 5,
+    "seed": 9351,
+    "capture_video": false,
+    "track": false,
+    "save_model": true,
+    "wall_limit_s": 1200.0,
+    "min_free_mib": 1536,
+    "start_free_mib": 3072,
+    "storage_limit_mb": 300,
+    "upstream_commit": "a4a4f9272ad64b1564035874b605ceb687b63ed8",
+    "ppo_blob_sha": "66802de0653061da550d6600d6346be374dbf974",
+    "ppo_path": "/home/ubuntu2004/.cache/ms-upstream-ppo/ppo.py",
+    "interpreter": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python"
+  },
+  "command": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python /home/ubuntu2004/.cache/ms-upstream-ppo/ppo.py --env-id PickCube-v1 --exp-name PickCube-v1__ppo__9351__stageB --num-envs 128 --num-steps 50 --total-timesteps 256000 --update-epochs 4 --num-minibatches 32 --num-eval-envs 8 --eval-freq 5 --seed 9351 --no-capture-video --no-track --save-model",
+  "expected": {
+    "iterations": 40,
+    "train_env_steps": 256000,
+    "eval_env_steps": 3200,
+    "periodic_checkpoints": 8,
+    "final_checkpoints": 1,
+    "optimizer_updates_upper_bound": 5120
+  },
+  "preflight": {
+    "nvidia_smi_rc": 9,
+    "error": "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.",
+    "gpu_visibility_verdict": "NO_NODES",
+    "device_nodes": [
+      "full",
+      "null",
+      "random",
+      "shm",
+      "tty",
+      "urandom",
+      "zero"
+    ],
+    "seccomp": "mode 2, 1 filter, NoNewPrivs=1 (ioctl allow-list; see docs/M2_GPU_VISIBILITY.md)"
+  },
+  "iterations_completed": 0,
+  "steps": {
+    "train_env_steps": null,
+    "eval_env_steps": null,
+    "optimizer_updates_upper_bound": null,
+    "note": "NOT_MEASURED - zero iterations executed"
+  },
+  "sps": {
+    "end_to_end": null,
+    "loop_from_stdout": null,
+    "loop_from_tensorboard": null,
+    "note": "NOT_MEASURED"
+  },
+  "vram": {
+    "peak_used_mib": null,
+    "min_free_mib": null,
+    "note": "NOT_MEASURED"
+  },
+  "tensorboard": {
+    "present": false
+  },
+  "checkpoints": {
+    "count": 0,
+    "note": "NOT_RUN"
+  },
+  "returncode": null,
+  "measured": false
+}

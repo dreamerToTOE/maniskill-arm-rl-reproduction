@@ -28,20 +28,23 @@
 
 | 包 | 谁需要 | 现状 | A0 需要吗 |
 |---|---|---|---|
-| `tensorboard` | `ppo.py` 与 `ppo_fast.py` 都硬性 import | MISSING | **不需要** |
-| `tensordict` | 仅 `ppo_fast.py` | MISSING | **不需要** |
-| `wandb` | `ppo_fast.py` 顶层无条件 import；`ppo.py` 仅 `--track` 时导入 | MISSING | **不需要** |
+| `tensorboard` | `ppo.py` 与 `ppo_fast.py` 都硬性 import | **已安装 2.21.0（2026-10-21，Stage B 授权）** | 不需要 |
+| `tensordict` | 仅 `ppo_fast.py` | MISSING（**未安装，也不在本阶段范围**） | 不需要 |
+| `wandb` | `ppo_fast.py` 顶层无条件 import；`ppo.py` 仅 `--track` 时导入 | MISSING（**未安装；本轮用 `--no-track`**） | 不需要 |
 
 **修正（独立复核第 6 条）**：A0 只用到 `torch` / `gymnasium` / `mani_skill` / `sapien`，**一个包都不用装**。
-`tensorboard` 是 Stage B（真的跑 `ppo.py`）的前置，必须单独批准；`tensordict` + `wandb` 只属于 `ppo_fast.py`。
+`tensorboard` 是 Stage B（真的跑 `ppo.py`）的前置，已于 2026-10-21 单独批准并安装；
+`tensordict` + `wandb` 只属于 `ppo_fast.py`，**本轮明确不装**。
 
 ```bash
-# 仅在批准 Stage B 后才执行；A0 不需要
+# 实际执行过（2026-10-21），结果：tensorboard 2.21.0 / protobuf 7.36.2 / grpcio 1.84.0
+# / markdown 3.10.3 / werkzeug 3.1.9 / tensorboard-data-server 0.7.2；pip check 干净；
+# 磁盘增量约 64 MB（未保留 wheel 缓存）。venv 由 5.9 GB → 约 5.97 GiB。
 ./.venv-maniskill/bin/python -m pip install --no-cache-dir 'tensorboard>=2.16,<3'
 ```
 预估增量 200–400 MB（含 protobuf/grpcio 等），实际以安装后 `du` 为准。
 
-## 0.1 Stage A0 拟执行命令（待批准）
+## 0.1 Stage A0 实际执行命令（**已 PASS，12/12**）
 
 ```bash
 cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
@@ -127,15 +130,19 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 | 项目 | 设定 |
 |---|---|
 | 脚本 | 上游 `ppo.py`（**不修改**），只通过命令行覆盖 |
-| 命令骨架 | `python ppo.py --env_id=PickCube-v1 --num_envs=128 --num_steps=50 --update_epochs=4 --num_minibatches=32 --total_timesteps=256000 --seed=9351 --capture_video=False --track=False`（Tyro 布尔语法须先 `--help` 核对） |
+| 命令骨架 | **Tyro 是 kebab-case，不能用 `--capture_video=False`**（那样会在解析阶段直接报错）。已用 `--help` 核实，实际命令：`python ppo.py --env-id PickCube-v1 --exp-name PickCube-v1__ppo__9351__stageB --num-envs 128 --num-steps 50 --total-timesteps 256000 --update-epochs 4 --num-minibatches 32 --num-eval-envs 8 --eval-freq 5 --seed 9351 --no-capture-video --no-track --save-model` |
 | 并行数 | **128**（A1 结论：256 达标后减半；显存余量充足，余量留给策略/优化器/渲染） |
-| 总步数上限 | **256,000**（`256000 // (num_envs×50)` 个 iteration，512 env 时为 10 个） |
-| 墙钟上限 | **≤ 20 分钟** |
-| 磁盘上限 | **≤ 300 MB**（tensorboard events + 2 个 `.pt`，每个约 2–3 MB） |
-| 评估 | `eval_freq=5`，`num_eval_envs=8`，仅看管道是否通 |
-| 显存下限 | free < 400 MiB 即中止 |
-| 停止条件 | OOM / NaN-Inf loss / 墙钟超限 / 连续 2 分钟无新 iteration 输出 / `/dev/nvidia*` 消失 |
-| 产出 | `runs/PickCube-v1__ppo__9351__<ts>/`（events、ckpt_1.pt、final_ckpt.pt）+ 日志 `results/raw/` + 一行 SPS 记录进 `results/m2_pilot_summary.json` |
+| 总步数上限 | **256,000** → `256000 // (128×50)` = **40 个 iteration** |
+| 墙钟上限 | **≤ 1200 s**（外部 `timeout 1260` 兜底） |
+| 磁盘上限 | **≤ 300 MB**。**checkpoint 数量是 9 个不是 2 个**：`ppo.py` 在 `iteration % eval_freq == 1` 时存盘 ⇒ 第 1/6/11/16/21/26/31/36 次 = **8 个周期 ckpt**，再加收尾的 `final_ckpt.pt` = **9 个 `.pt`**（每份约 1.2–3 MB，合计 < 30 MB），主要占用是 tensorboard events |
+| 评估 | `eval_freq=5`（共 8 次评估，每次 50 步 × 8 env = 400 env-steps），`num_eval_envs=8`，仅看管道是否通 |
+| 显存下限 | free < 1536 MiB 即中止（起始闸 3072 MiB） |
+| 停止条件 | CUDA OOM / NaN-Inf loss / 墙钟超限 / 连续 120 s 无新 iteration / 显存跌破下限 / 输出 > 300 MB |
+| 产出 | `runs/PickCube-v1__ppo__9351__stageB/`（events + 9 个 ckpt）+ 逐行日志 `results/raw/m2_stage_b_pilot.log` + `results/m2_pilot_summary.json` |
+
+> **审计发现（2026-10-21）**：`ppo.py:195` 把 `render_mode="rgb_array"` **硬编码**在 `env_kwargs` 里，
+> 且没有对应 CLI 开关。所以 Stage B 一定带渲染，A1（`render_mode=None`）的 3931 MiB 峰值**不能**直接套用，
+> 显存会更高。这是本阶段最大的未知风险，也是 1536 MiB 运行闸存在的理由。
 
 ### 明确不能从这个 pilot 得出的结论
 
