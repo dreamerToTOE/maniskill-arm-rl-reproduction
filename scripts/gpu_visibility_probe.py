@@ -37,6 +37,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # major:minor as registered in /proc/devices on this host (driver 580.178.04).
@@ -181,8 +182,21 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--try-mknod", action="store_true",
                     help="create the NVIDIA nodes in this process's /dev and test them")
+    ap.add_argument("--wait", type=float, default=0.0, metavar="SECONDS",
+                    help="poll until the GPU is visible or this many seconds elapse "
+                         "(0 = check once); exits 0 the moment nvidia-smi works")
     ap.add_argument("--json", type=Path, default=None)
     args = ap.parse_args(argv)
+
+    if args.wait > 0:
+        deadline = time.monotonic() + args.wait
+        while time.monotonic() < deadline:
+            if smi()["returncode"] == 0:
+                print("GPU became visible", file=sys.stderr)
+                return EXIT_OK
+            time.sleep(2.0)
+        print(f"GPU still not visible after {args.wait:.0f}s", file=sys.stderr)
+        return EXIT_NO_NODES
 
     report: dict = {
         "kind": "gpu_visibility",
