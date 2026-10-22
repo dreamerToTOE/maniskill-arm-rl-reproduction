@@ -84,7 +84,7 @@ EXIT_VIOLATION = 9
 EXIT_ERROR = 5
 
 
-def evals_done(iters: int) -> int:
+def evals_done(iters: int, eval_freq: int = EVAL_FREQ) -> int:
     """How many evaluations happened after `iters` iterations.
 
     Upstream evaluates (and saves) when `iteration % eval_freq == 1`
@@ -92,7 +92,7 @@ def evals_done(iters: int) -> int:
     (1,6,...,36) and 29 give 6. Using `iters // eval_freq` undercounts by one
     whenever the run is cut between the first and last aligned iteration.
     """
-    return 0 if iters < 1 else (iters - 1) // EVAL_FREQ + 1
+    return 0 if iters < 1 else (iters - 1) // eval_freq + 1
 
 
 def blob_sha1(path: Path) -> str:
@@ -100,7 +100,8 @@ def blob_sha1(path: Path) -> str:
     return hashlib.sha1(b"blob %d\0" % len(raw) + raw).hexdigest()
 
 
-def build_argv(python: str, ppo: Path, num_envs: int, exp_name: str) -> list[str]:
+def build_argv(python: str, ppo: Path, num_envs: int, exp_name: str,
+               seed: int, total_timesteps: int, eval_freq: int) -> list[str]:
     """The exact upstream CLI. Tyro is kebab-case: --no-capture-video, not
     --capture_video=False (that would be an argparse error before training).
 
@@ -115,12 +116,12 @@ def build_argv(python: str, ppo: Path, num_envs: int, exp_name: str) -> list[str
         "--exp-name", exp_name,
         "--num-envs", str(num_envs),
         "--num-steps", str(NUM_STEPS),
-        "--total-timesteps", str(TOTAL_TIMESTEPS),
+        "--total-timesteps", str(total_timesteps),
         "--update-epochs", str(UPDATE_EPOCHS),
         "--num-minibatches", str(NUM_MINIBATCHES),
         "--num-eval-envs", str(NUM_EVAL_ENVS),
-        "--eval-freq", str(EVAL_FREQ),
-        "--seed", str(SEED),
+        "--eval-freq", str(eval_freq),
+        "--seed", str(seed),
         "--no-capture-video",
         "--no-track",
         "--save-model",
@@ -250,7 +251,8 @@ def run_self_test() -> int:
         if not cond:
             failures.append(name)
 
-    argv = build_argv("/py", Path("/tmp/ppo.py"), 128, "PickCube-v1__ppo__9351__stageB")
+    argv = build_argv("/py", Path("/tmp/ppo.py"), 128, "PickCube-v1__ppo__9351__stageB",
+                      9351, 256000, 5)
     joined = " ".join(argv)
     check("argv runs the child unbuffered (-u)", argv[1] == "-u", str(argv[:3]))
     check("argv pins num-envs 128", "--num-envs 128" in joined)
@@ -306,7 +308,7 @@ def run_self_test() -> int:
     return EXIT_OK if not failures else 1
 
 
-def harvest(summary_path: Path, run_dir: Path, num_envs: int) -> int:
+def harvest(summary_path: Path, run_dir: Path, num_envs: int, eval_freq: int) -> int:
     """Re-derive the metrics from what is on disk, without training anything.
 
     Needed because a killed child loses its buffered stdout while the TensorBoard
@@ -331,7 +333,7 @@ def harvest(summary_path: Path, run_dir: Path, num_envs: int) -> int:
     summary["iterations_completed"] = iters
     summary["steps"] = {
         "train_env_steps": iters * num_envs * NUM_STEPS,
-        "eval_env_steps": evals_done(iters) * NUM_EVAL_ENVS * NUM_EVAL_STEPS,
+        "eval_env_steps": evals_done(iters, eval_freq) * NUM_EVAL_ENVS * NUM_EVAL_STEPS,
         "optimizer_updates_upper_bound": iters * UPDATE_EPOCHS * NUM_MINIBATCHES,
         "note": "derived from the event file after a kill; stdout was lost to buffering",
     }
@@ -363,6 +365,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ppo", type=Path, default=DEFAULT_PPO)
     p.add_argument("--num-envs", type=int, default=NUM_ENVS,
                    help="parallel training envs; 128 is the approved Stage B default")
+    p.add_argument("--seed", type=int, default=SEED)
+    p.add_argument("--total-timesteps", type=int, default=TOTAL_TIMESTEPS,
+                   help="training env steps; 256000 for pilots, 50000000 for the full run")
+    p.add_argument("--eval-freq", type=int, default=EVAL_FREQ,
+                   help="evaluations + checkpoints every N iterations (upstream default 25)")
     p.add_argument("--exp-name", default=EXP_NAME,
                    help="runs/<exp-name>; distinct names keep runs from colliding")
     p.add_argument("--runs-dir", type=Path, default=Path("runs"))
@@ -391,28 +398,29 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         return run_self_test()
     if args.harvest:
-        return harvest(args.summary, args.runs_dir / args.exp_name, args.num_envs)
+        return harvest(args.summary, args.runs_dir / args.exp_name, args.num_envs, args.eval_freq)
 
     batch_size = args.num_envs * NUM_STEPS
-    num_iterations = TOTAL_TIMESTEPS // batch_size
+    num_iterations = args.total_timesteps // batch_size
     cfg = {
         "stage": "B", "classification": "ADAPTATION / PLUMBING_ONLY",
         "env_id": "PickCube-v1", "num_envs": args.num_envs, "num_steps": NUM_STEPS,
         "batch_size": batch_size, "num_iterations": num_iterations,
         "exp_name": args.exp_name,
-        "total_timesteps": TOTAL_TIMESTEPS, "update_epochs": UPDATE_EPOCHS,
+        "total_timesteps": args.total_timesteps, "update_epochs": UPDATE_EPOCHS,
         "num_minibatches": NUM_MINIBATCHES, "num_eval_envs": NUM_EVAL_ENVS,
-        "eval_freq": EVAL_FREQ, "seed": SEED, "capture_video": False,
+        "eval_freq": args.eval_freq, "seed": args.seed, "capture_video": False,
         "track": False, "save_model": True,
         "wall_limit_s": args.wall_limit, "min_free_mib": args.min_free_mib,
         "start_free_mib": args.start_free_mib, "storage_limit_mb": args.storage_mb,
         "upstream_commit": PINNED_UPSTREAM_COMMIT, "ppo_blob_sha": PINNED_PPO_BLOB,
         "ppo_path": str(args.ppo), "interpreter": args.python,
     }
-    cmd = build_argv(args.python, args.ppo, args.num_envs, args.exp_name)
+    cmd = build_argv(args.python, args.ppo, args.num_envs, args.exp_name,
+                     args.seed, args.total_timesteps, args.eval_freq)
 
     if args.dry_run:
-        periodic = (num_iterations - 1) // EVAL_FREQ + 1 if num_iterations >= 1 else 0
+        periodic = evals_done(num_iterations, args.eval_freq) if num_iterations >= 1 else 0
         print(json.dumps({"config": cfg, "argv": cmd,
                           "expected_iterations": num_iterations,
                           "expected_periodic_ckpts": periodic, "expected_final_ckpts": 1},
@@ -575,7 +583,7 @@ def main(argv: list[str] | None = None) -> int:
     summary["iterations_from_events"] = iters_tb
     summary["iterations_completed"] = iters_done
     train_steps = iters_done * args.num_envs * NUM_STEPS
-    evals = evals_done(iters_done)
+    evals = evals_done(iters_done, args.eval_freq)
     summary["steps"] = {
         "train_env_steps": train_steps,
         "eval_env_steps": evals * NUM_EVAL_ENVS * 50,
