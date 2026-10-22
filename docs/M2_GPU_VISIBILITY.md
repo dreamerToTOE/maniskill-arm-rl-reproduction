@@ -114,3 +114,31 @@ never produced a false number:
 
 Recommended habit before any GPU gate: run the probe and paste its verdict into
 the report. It converts "the agent couldn't see the GPU" into a checkable claim.
+
+---
+
+## 6. Re-check 2026-10-22 — device cgroup ruled out; no config knob exists
+
+After the user asked whether the GPU could be bound from inside, the diagnosis was
+re-confirmed and one alternative mechanism was eliminated:
+
+- **cgroup v2 device controller is NOT the mechanism.** The agent's cgroup
+  (`app-gnome-workbuddy-*.scope` under `app.slice`) has **no `devices` controller**
+  (`cgroup.controllers` lacks it, and there is no `devices.list`). So device access is
+  not being filtered by an eBPF device program — the block is purely the
+  mount-namespace `/dev` plus the seccomp ioctl allow-list.
+- **`cgroup.procs` reads as a string of `0`s**, the signature of a child PID namespace:
+  the host cannot see the agent's processes as real PIDs, and symmetrically the agent
+  cannot see or signal host processes.
+- **There is no user-editable knob** in `~/.workbuddy/` that controls GPU device
+  binding (only app/session/cache data; no sandbox or device config). The sandbox
+  profile lives in the WorkBuddy application itself (`/opt/WorkBuddy/`), not in the
+  user config dir.
+
+**Conclusion (unchanged, now sharper):** the GPU is excluded by the WorkBuddy sandbox's
+mount namespace + seccomp profile, set up by the host process at spawn time. It is
+immutable from inside (seccomp filters are fixed once installed, `NoNewPrivs=1` blocks
+any privilege regain, no DBus, no host PIDs). Fixes are host-side only:
+1. WorkBuddy team: bind `/dev/nvidia*` into the sandbox and allow the NVIDIA ioctls in
+   the seccomp profile (this is a product change, not a script).
+2. Run GPU work in the researcher's terminal, which has always had the GPU.
