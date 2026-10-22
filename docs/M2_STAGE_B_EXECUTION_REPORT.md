@@ -339,11 +339,10 @@ Nothing in the algorithm, optimizer, GAE, reward, or network architecture was mo
    within the "under ~2 days" bar, with no cloud rental needed. The official 4096-env
    configuration would be far faster but does not fit in 8 GiB.
 
-2. **If throughput matters more than locality**, the lever is env count, not the GPU:
-   A1 showed 256 envs cost no extra VRAM (3912 → 3931 MiB without rendering) but
-   +82 % throughput. A 256-env PPO pilot is the obvious next bounded experiment; note it
-   needs ~+1.2 GiB for rendering, so peak would land near 6.3 GiB of 8.2 GiB — tight but
-   inside the 1536 MiB floor. **Not authorized, not run.**
+2. **If throughput matters more than locality**, the lever is env count, not the GPU.
+   **This is now measured**: the 256-env pilot (2026-10-22) ran 20/20 at loop SPS 4435
+   (+71 % over 128) with **flat VRAM** (peak 4601 MiB, min free 3217 MiB) — see
+   `docs/M2_STAGE_B_256_PILOT.md`. 256 envs ≈ **3.13 h/seed, ~9.4 h / 3 seeds**.
 
 3. **Do not** raise `total_timesteps` and call it a baseline reproduction: that still
    requires `ppo_fast.py`, 4096 envs, the official 4-step/8-epoch schedule, cudagraphs,

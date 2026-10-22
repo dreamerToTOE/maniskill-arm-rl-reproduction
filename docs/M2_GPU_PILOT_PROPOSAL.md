@@ -148,6 +148,12 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 > 峰值显存 **5137 MiB**（比 A1 无渲染的 3931 高 **1206 MiB / +31%**，验证了 `render_mode` 硬编码预判），
 > free 最低 2682 MiB；256,000 训练步 + 3,200 评估步，9 个 ckpt。attempt 1（20:51）被监督器 stdout
 > 缓冲 bug 误杀在 29/40，已修（`-u` + 两段式看门狗）。详见 `docs/M2_STAGE_B_EXECUTION_REPORT.md`。
+>
+> **256-env pilot（2026-10-22 11:22，PASS）**：agent 会话恢复 GPU 可见性后直接跑（`verdict: OK`）。
+> **20/20 iteration，e2e 2885.8 / loop 4435 SPS（128 的 loop 是 2600，+71%）**，峰值显存
+> **4601 MiB / 最低 free 3217 MiB**——加一倍环境**没有**触发显存墙（128→256 的场景+渲染成本基本不随
+> env 数涨，与 A1 一致）。稳态外推：256 env ≈ **3.13 h/seed、三 seed ~9.4 h**（128 是 ~16 h）。
+> 详见 `docs/M2_STAGE_B_256_PILOT.md`。
 
 ### 明确不能从这个 pilot 得出的结论
 

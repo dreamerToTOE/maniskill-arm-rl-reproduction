@@ -100,7 +100,7 @@ def blob_sha1(path: Path) -> str:
     return hashlib.sha1(b"blob %d\0" % len(raw) + raw).hexdigest()
 
 
-def build_argv(python: str, ppo: Path) -> list[str]:
+def build_argv(python: str, ppo: Path, num_envs: int, exp_name: str) -> list[str]:
     """The exact upstream CLI. Tyro is kebab-case: --no-capture-video, not
     --capture_video=False (that would be an argparse error before training).
 
@@ -112,8 +112,8 @@ def build_argv(python: str, ppo: Path) -> list[str]:
     return [
         python, "-u", str(ppo),
         "--env-id", "PickCube-v1",
-        "--exp-name", EXP_NAME,
-        "--num-envs", str(NUM_ENVS),
+        "--exp-name", exp_name,
+        "--num-envs", str(num_envs),
         "--num-steps", str(NUM_STEPS),
         "--total-timesteps", str(TOTAL_TIMESTEPS),
         "--update-epochs", str(UPDATE_EPOCHS),
@@ -250,7 +250,7 @@ def run_self_test() -> int:
         if not cond:
             failures.append(name)
 
-    argv = build_argv("/py", Path("/tmp/ppo.py"))
+    argv = build_argv("/py", Path("/tmp/ppo.py"), 128, "PickCube-v1__ppo__9351__stageB")
     joined = " ".join(argv)
     check("argv runs the child unbuffered (-u)", argv[1] == "-u", str(argv[:3]))
     check("argv pins num-envs 128", "--num-envs 128" in joined)
@@ -306,7 +306,7 @@ def run_self_test() -> int:
     return EXIT_OK if not failures else 1
 
 
-def harvest(summary_path: Path, run_dir: Path) -> int:
+def harvest(summary_path: Path, run_dir: Path, num_envs: int) -> int:
     """Re-derive the metrics from what is on disk, without training anything.
 
     Needed because a killed child loses its buffered stdout while the TensorBoard
@@ -322,7 +322,7 @@ def harvest(summary_path: Path, run_dir: Path) -> int:
     scalars = read_scalars(run_dir)
     steps_seen = [s.get("last_step") for s in scalars.values()
                   if isinstance(s, dict) and s.get("last_step")]
-    iters = max(steps_seen) // (NUM_ENVS * NUM_STEPS) if steps_seen else 0
+    iters = max(steps_seen) // (num_envs * NUM_STEPS) if steps_seen else 0
     wall = summary.get("wall_s")
     summary["tensorboard"] = scalars
     summary["checkpoints"] = checkpoints(run_dir) if run_dir.exists() else {"count": 0}
@@ -330,13 +330,13 @@ def harvest(summary_path: Path, run_dir: Path) -> int:
     summary["iterations_from_events"] = iters
     summary["iterations_completed"] = iters
     summary["steps"] = {
-        "train_env_steps": iters * NUM_ENVS * NUM_STEPS,
+        "train_env_steps": iters * num_envs * NUM_STEPS,
         "eval_env_steps": evals_done(iters) * NUM_EVAL_ENVS * NUM_EVAL_STEPS,
         "optimizer_updates_upper_bound": iters * UPDATE_EPOCHS * NUM_MINIBATCHES,
         "note": "derived from the event file after a kill; stdout was lost to buffering",
     }
     summary["sps"] = {
-        "end_to_end": round(iters * NUM_ENVS * NUM_STEPS / wall, 1)
+        "end_to_end": round(iters * num_envs * NUM_STEPS / wall, 1)
         if isinstance(wall, (int, float)) and wall > 0 else None,
         "loop_from_tensorboard": (scalars.get("charts/SPS") or {}).get("last")
         if scalars.get("present") else None,
@@ -361,6 +361,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Stage B: one bounded upstream-PPO pilot with kill switches.")
     p.add_argument("--python", default=str(Path(".venv-maniskill/bin/python").absolute()))
     p.add_argument("--ppo", type=Path, default=DEFAULT_PPO)
+    p.add_argument("--num-envs", type=int, default=NUM_ENVS,
+                   help="parallel training envs; 128 is the approved Stage B default")
+    p.add_argument("--exp-name", default=EXP_NAME,
+                   help="runs/<exp-name>; distinct names keep runs from colliding")
     p.add_argument("--runs-dir", type=Path, default=Path("runs"))
     p.add_argument("--summary", type=Path, default=Path("results/m2_pilot_summary.json"))
     p.add_argument("--log", type=Path, default=Path("results/raw/m2_stage_b_pilot.log"))
@@ -387,11 +391,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         return run_self_test()
     if args.harvest:
-        return harvest(args.summary, args.runs_dir / EXP_NAME)
+        return harvest(args.summary, args.runs_dir / args.exp_name, args.num_envs)
 
+    batch_size = args.num_envs * NUM_STEPS
+    num_iterations = TOTAL_TIMESTEPS // batch_size
     cfg = {
         "stage": "B", "classification": "ADAPTATION / PLUMBING_ONLY",
-        "env_id": "PickCube-v1", "num_envs": NUM_ENVS, "num_steps": NUM_STEPS,
+        "env_id": "PickCube-v1", "num_envs": args.num_envs, "num_steps": NUM_STEPS,
+        "batch_size": batch_size, "num_iterations": num_iterations,
+        "exp_name": args.exp_name,
         "total_timesteps": TOTAL_TIMESTEPS, "update_epochs": UPDATE_EPOCHS,
         "num_minibatches": NUM_MINIBATCHES, "num_eval_envs": NUM_EVAL_ENVS,
         "eval_freq": EVAL_FREQ, "seed": SEED, "capture_video": False,
@@ -401,12 +409,13 @@ def main(argv: list[str] | None = None) -> int:
         "upstream_commit": PINNED_UPSTREAM_COMMIT, "ppo_blob_sha": PINNED_PPO_BLOB,
         "ppo_path": str(args.ppo), "interpreter": args.python,
     }
-    cmd = build_argv(args.python, args.ppo)
+    cmd = build_argv(args.python, args.ppo, args.num_envs, args.exp_name)
 
     if args.dry_run:
+        periodic = (num_iterations - 1) // EVAL_FREQ + 1 if num_iterations >= 1 else 0
         print(json.dumps({"config": cfg, "argv": cmd,
-                          "expected_iterations": TOTAL_TIMESTEPS // (NUM_ENVS * NUM_STEPS),
-                          "expected_periodic_ckpts": 8, "expected_final_ckpts": 1},
+                          "expected_iterations": num_iterations,
+                          "expected_periodic_ckpts": periodic, "expected_final_ckpts": 1},
                          indent=2))
         return EXIT_OK
 
@@ -461,7 +470,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"BLOCKED: {summary['error']}", file=sys.stderr)
             return EXIT_BLOCKED
 
-    run_dir = args.runs_dir / EXP_NAME
+    run_dir = args.runs_dir / args.exp_name
     summary["run_dir"] = str(run_dir)
     args.log.parent.mkdir(parents=True, exist_ok=True)
     log_fh = args.log.open("w", encoding="utf-8")
@@ -559,13 +568,13 @@ def main(argv: list[str] | None = None) -> int:
         steps = [s.get("last_step") for s in scalars.values()
                  if isinstance(s, dict) and s.get("last_step")]
         if steps:
-            iters_tb = max(steps) // (NUM_ENVS * NUM_STEPS)
+            iters_tb = max(steps) // (args.num_envs * NUM_STEPS)
     # The event file is the authoritative record: stdout can be truncated by a kill.
     iters_done = max(iters_stdout, iters_tb)
     summary["iterations_stdout"] = iters_stdout
     summary["iterations_from_events"] = iters_tb
     summary["iterations_completed"] = iters_done
-    train_steps = iters_done * NUM_ENVS * NUM_STEPS
+    train_steps = iters_done * args.num_envs * NUM_STEPS
     evals = evals_done(iters_done)
     summary["steps"] = {
         "train_env_steps": train_steps,
@@ -586,7 +595,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if kill_reason:
         summary["status"] = "KILLED"
-    elif proc.returncode == 0 and iters_done == TOTAL_TIMESTEPS // (NUM_ENVS * NUM_STEPS):
+    elif proc.returncode == 0 and iters_done == num_iterations:
         summary["status"] = "PASS"
     elif proc.returncode == 0:
         summary["status"] = "PARTIAL"

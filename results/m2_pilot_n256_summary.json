@@ -1,0 +1,321 @@
+{
+  "kind": "m2_stage_b_pilot",
+  "config": {
+    "stage": "B",
+    "classification": "ADAPTATION / PLUMBING_ONLY",
+    "env_id": "PickCube-v1",
+    "num_envs": 256,
+    "num_steps": 50,
+    "batch_size": 12800,
+    "num_iterations": 20,
+    "exp_name": "PickCube-v1__ppo__9351__stageB_n256",
+    "total_timesteps": 256000,
+    "update_epochs": 4,
+    "num_minibatches": 32,
+    "num_eval_envs": 8,
+    "eval_freq": 5,
+    "seed": 9351,
+    "capture_video": false,
+    "track": false,
+    "save_model": true,
+    "wall_limit_s": 1200.0,
+    "min_free_mib": 1536,
+    "start_free_mib": 3072,
+    "storage_limit_mb": 300,
+    "upstream_commit": "a4a4f9272ad64b1564035874b605ceb687b63ed8",
+    "ppo_blob_sha": "66802de0653061da550d6600d6346be374dbf974",
+    "ppo_path": "/home/ubuntu2004/.cache/ms-upstream-ppo/ppo.py",
+    "interpreter": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python"
+  },
+  "started_wall": "2026-10-22T11:32:02+0900",
+  "status": "PASS",
+  "command": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python -u /home/ubuntu2004/.cache/ms-upstream-ppo/ppo.py --env-id PickCube-v1 --exp-name PickCube-v1__ppo__9351__stageB_n256 --num-envs 256 --num-steps 50 --total-timesteps 256000 --update-epochs 4 --num-minibatches 32 --num-eval-envs 8 --eval-freq 5 --seed 9351 --no-capture-video --no-track --save-model",
+  "preflight": {
+    "nvidia_smi": {
+      "binary": "/usr/bin/nvidia-smi",
+      "returncode": 0,
+      "stdout": "NVIDIA GeForce RTX 3070, 580.178.04, 8192, 1039, 6779",
+      "stderr": ""
+    },
+    "free_mib": 6779,
+    "compute_apps": [
+      {
+        "pid": "2855",
+        "process": "/usr/libexec/gnome-remote-desktop-daemon",
+        "used_mib": 157
+      }
+    ],
+    "ppo_blob_sha_actual": "66802de0653061da550d6600d6346be374dbf974"
+  },
+  "run_dir": "runs/PickCube-v1__ppo__9351__stageB_n256",
+  "wall_s": 88.71,
+  "returncode": 0,
+  "loop_sps_last": 4435,
+  "tensorboard": {
+    "present": true,
+    "event_file": "events.out.tfevents.1792636344.ubuntu2004.13160.0",
+    "size_bytes": 24661,
+    "all_tags": [
+      "eval/success_once",
+      "eval/return",
+      "eval/episode_len",
+      "eval/reward",
+      "eval/success_at_end",
+      "train/success_once",
+      "train/return",
+      "train/episode_len",
+      "train/reward",
+      "charts/learning_rate",
+      "losses/value_loss",
+      "losses/policy_loss",
+      "losses/entropy",
+      "losses/old_approx_kl",
+      "losses/approx_kl",
+      "losses/clipfrac",
+      "losses/explained_variance",
+      "charts/SPS",
+      "time/step",
+      "time/update_time",
+      "time/rollout_time",
+      "time/rollout_fps"
+    ],
+    "losses/policy_loss": {
+      "present": true,
+      "n": 20,
+      "first": -0.010817,
+      "last": 0.035561,
+      "mean": -0.010588,
+      "min": -0.038043,
+      "max": 0.035561,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "losses/value_loss": {
+      "present": true,
+      "n": 20,
+      "first": 0.007856,
+      "last": 0.019839,
+      "mean": 0.006468,
+      "min": 0.002399,
+      "max": 0.019839,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "losses/approx_kl": {
+      "present": true,
+      "n": 20,
+      "first": 0.010771,
+      "last": 0.046891,
+      "mean": 0.030233,
+      "min": 0.010771,
+      "max": 0.04721,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "losses/clipfrac": {
+      "present": true,
+      "n": 20,
+      "first": 0.146641,
+      "last": 0.343027,
+      "mean": 0.317071,
+      "min": 0.146641,
+      "max": 0.36541,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "losses/explained_variance": {
+      "present": true,
+      "n": 20,
+      "first": -1.097003,
+      "last": 0.697203,
+      "mean": 0.467611,
+      "min": -1.097003,
+      "max": 0.697203,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "losses/entropy": {
+      "present": true,
+      "n": 20,
+      "first": 7.342188,
+      "last": 6.53578,
+      "mean": 6.939296,
+      "min": 6.53578,
+      "max": 7.342188,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "losses/old_approx_kl": {
+      "present": true,
+      "n": 20,
+      "first": 0.024199,
+      "last": 0.046861,
+      "mean": 0.030635,
+      "min": -0.003308,
+      "max": 0.058213,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "charts/SPS": {
+      "present": true,
+      "n": 20,
+      "first": 2735.0,
+      "last": 4435.0,
+      "mean": 4332.25,
+      "min": 2735.0,
+      "max": 4735.0,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "charts/learning_rate": {
+      "present": true,
+      "n": 20,
+      "first": 0.0003,
+      "last": 0.0003,
+      "mean": 0.0003,
+      "min": 0.0003,
+      "max": 0.0003,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "time/rollout_time": {
+      "present": true,
+      "n": 20,
+      "first": 1.622447,
+      "last": 2.178083,
+      "mean": 2.003651,
+      "min": 1.58982,
+      "max": 2.202845,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "time/update_time": {
+      "present": true,
+      "n": 20,
+      "first": 0.878037,
+      "last": 0.46672,
+      "mean": 0.477289,
+      "min": 0.435694,
+      "max": 0.878037,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "time/rollout_fps": {
+      "present": true,
+      "n": 20,
+      "first": 7889.31543,
+      "last": 5876.727539,
+      "mean": 6449.49165,
+      "min": 5810.668457,
+      "max": 8051.227539,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "eval/success_once": {
+      "present": true,
+      "n": 4,
+      "first": 0.0,
+      "last": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "non_finite": 0,
+      "last_step": 192000
+    },
+    "eval/return": {
+      "present": true,
+      "n": 4,
+      "first": 2.759918,
+      "last": 8.508295,
+      "mean": 6.58984,
+      "min": 2.759918,
+      "max": 8.508295,
+      "non_finite": 0,
+      "last_step": 192000
+    },
+    "eval/episode_len": {
+      "present": true,
+      "n": 4,
+      "first": 50.0,
+      "last": 50.0,
+      "mean": 50.0,
+      "min": 50.0,
+      "max": 50.0,
+      "non_finite": 0,
+      "last_step": 192000
+    },
+    "train/success_once": {
+      "present": true,
+      "n": 36,
+      "first": 0.0,
+      "last": 0.0,
+      "mean": 0.027778,
+      "min": 0.0,
+      "max": 1.0,
+      "non_finite": 0,
+      "last_step": 256000
+    },
+    "train/return": {
+      "present": true,
+      "n": 36,
+      "first": 2.632967,
+      "last": 8.330728,
+      "mean": 6.507992,
+      "min": 2.632967,
+      "max": 8.330728,
+      "non_finite": 0,
+      "last_step": 256000
+    }
+  },
+  "vram": {
+    "min_free_mib": 3217,
+    "peak_used_mib": 4601,
+    "samples": 11,
+    "note": "device level via nvidia-smi every ~5 s; torch allocations are not counted separately here"
+  },
+  "checkpoints": {
+    "count": 5,
+    "periodic": 4,
+    "final": 1,
+    "files": [
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n256/ckpt_1.pt",
+        "mb": 1.102
+      },
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n256/ckpt_11.pt",
+        "mb": 1.102
+      },
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n256/ckpt_16.pt",
+        "mb": 1.102
+      },
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n256/ckpt_6.pt",
+        "mb": 1.102
+      },
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n256/final_ckpt.pt",
+        "mb": 1.103
+      }
+    ],
+    "total_mb": 5.511
+  },
+  "storage_mb": 5.53,
+  "iterations_stdout": 20,
+  "iterations_from_events": 20,
+  "iterations_completed": 20,
+  "steps": {
+    "train_env_steps": 256000,
+    "eval_env_steps": 1600,
+    "note": "train and eval counted separately; eval is 50 steps x 8 envs per evaluation",
+    "optimizer_updates_upper_bound": 2560,
+    "optimizer_updates_note": "upper bound: target_kl=0.1 can break an epoch early, so the true count can be lower and is not printed by upstream ppo.py"
+  },
+  "sps": {
+    "end_to_end": 2885.8,
+    "loop_from_stdout": 4435,
+    "loop_from_tensorboard": 4435.0,
+    "definition": "end_to_end = train_env_steps / wall clock of the whole child, so it includes env creation, evaluation and logging; ppo.py's own SPS does not"
+  }
+}
