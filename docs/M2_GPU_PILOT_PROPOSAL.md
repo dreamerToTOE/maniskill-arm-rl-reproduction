@@ -1,6 +1,6 @@
 # M2 GPU 运行报批 — 分阶段资源上限方案
 
-> 状态：**A0 PASSED (12/12) / A1 PASSED (4/4, 27.706 s) / STAGE B NOT APPROVED**
+> 状态：**A0 PASSED (12/12) / A1 PASSED (4/4, 27.706 s) / STAGE B PASSED (40/40, e2e 2400.4 SPS, 5137 MiB peak)**
 >
 > **2026-10-21 A1 结果（实测）**：16/64/128/256 的聚合仿真 SPS = **905.8 / 3342.0 / 6437.4 / 11746.1**，
 > 扩展效率 1.000/0.922/0.888/0.811；设备级显存峰值 **3912 / 3867 / 3931 / 3931 MiB**，全程 free ≥ 4261 MiB。
@@ -144,9 +144,10 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 > 且没有对应 CLI 开关。所以 Stage B 一定带渲染，A1（`render_mode=None`）的 3931 MiB 峰值**不能**直接套用，
 > 显存会更高。这是本阶段最大的未知风险，也是 1536 MiB 运行闸存在的理由。
 >
-> **实测（attempt 1，2026-10-21 20:51）**：峰值 **4937 MiB**，比 A1 的 3931 MiB **高 1006 MiB（+26%）**，
-> 上述预判成立；free 最低 2882 MiB，离 1536 MiB 闸门很远。同轮得到 **e2e 1516.8 SPS / loop 2563**，
-> 29/40 iteration（被监督器的 stdout 缓冲 bug 误杀，非训练失败）。详见 `docs/M2_STAGE_B_EXECUTION_REPORT.md`。
+> **实测（attempt 2，2026-10-21 21:08，PASS）**：**40/40 iteration，e2e 2400.4 SPS / loop 2600**，
+> 峰值显存 **5137 MiB**（比 A1 无渲染的 3931 高 **1206 MiB / +31%**，验证了 `render_mode` 硬编码预判），
+> free 最低 2682 MiB；256,000 训练步 + 3,200 评估步，9 个 ckpt。attempt 1（20:51）被监督器 stdout
+> 缓冲 bug 误杀在 29/40，已修（`-u` + 两段式看门狗）。详见 `docs/M2_STAGE_B_EXECUTION_REPORT.md`。
 
 ### 明确不能从这个 pilot 得出的结论
 

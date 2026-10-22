@@ -1,6 +1,6 @@
 # M2 START HERE — PickCube official PPO baseline (study first; no training)
 
-> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / **STAGE A0 PASSED (12/12, 3.496 s)** / **STAGE A1 PASSED (4/4, 27.706 s)** / PHYSX-CUDA-VERIFIED / PARALLEL-SCALING-MEASURED-TO-256 / SIM-THROUGHPUT-MEASURED / STAGE-B-PARTIAL (29/40 ITERATIONS, PIPELINE PROVEN, E2E 1516.8 SPS).**
+> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / **STAGE A0 PASSED (12/12, 3.496 s)** / **STAGE A1 PASSED (4/4, 27.706 s)** / PHYSX-CUDA-VERIFIED / PARALLEL-SCALING-MEASURED-TO-256 / SIM-THROUGHPUT-MEASURED / **STAGE-B-PASSED (40/40, E2E 2400.4 SPS, PEAK 5137 MiB)**.**
 >
 > Prerequisite: M1 PASSED at commit `d08e5870368c12644ff385e17f78068ad4bbb774`. Researcher approved **M1 isolated installation + 3-zero-action CPU smoke only**. This is not approval for M2 GPU simulation benchmarks or PPO training.
 >
@@ -12,7 +12,7 @@
 >
 > 2026-10-21 (A1): authorized, hardened and statically verified (51 audit + 82 self-test checks, 0 failed). The 16:09 agent-session attempt was `BLOCKED` (exit 8, zero levels), but the 16:18 run in the researcher's terminal **PASSED: 4/4 levels, exit 0, 27.706 s**, giving aggregate simulator SPS **905.8 / 3342.0 / 6437.4 / 11746.1** at 16/64/128/256 with scaling efficiency 1.000/0.922/0.888/0.811, and device VRAM **essentially flat** (peak 3912/3867/3931/3931 MiB, >= 4261 MiB free) — the ~1.3 GiB PhysX scene is a fixed cost. Details: [`M2_A1_EXECUTION_REPORT.md`](M2_A1_EXECUTION_REPORT.md).
 >
-> 2026-10-21 (Stage B): pilot authorized, code-audited, dependency installed (`tensorboard 2.21.0`), supervised (`scripts/m2_stage_b_pilot.py`). **Attempt 1 ran and is `PARTIAL`**: 29 of 40 iterations, 185,600 training env steps, 6/8 periodic checkpoints, 6 evaluations, **end-to-end 1516.8 SPS / loop 2563**, **peak VRAM 4937 MiB**, explained variance −1.03 → +0.83, eval success 0.0 (expected at this budget). The run was cut at 122 s by a **supervisor buffering bug**, not by a training failure — the child log is 0 bytes while the event file and 6 checkpoints are intact; fixed with `python -u` and a two-phase watchdog. Details: [`M2_STAGE_B_EXECUTION_REPORT.md`](M2_STAGE_B_EXECUTION_REPORT.md), GPU root cause: [`M2_GPU_VISIBILITY.md`](M2_GPU_VISIBILITY.md).
+> 2026-10-21 (Stage B): pilot authorized, code-audited, dependency installed (`tensorboard 2.21.0`), supervised (`scripts/m2_stage_b_pilot.py`). **Attempt 1 (20:51) was cut at 29/40 by a supervisor stdout-buffering bug; attempt 2 (21:08) PASSED cleanly — 40/40 iterations, 256,000 training + 3,200 eval env steps, 9 checkpoints, end-to-end 2400.4 SPS / loop 2600, peak VRAM 5137 MiB, explained variance −1.03 → +0.85, eval success 0.0 (expected at this budget).** Details: [`M2_STAGE_B_EXECUTION_REPORT.md`](M2_STAGE_B_EXECUTION_REPORT.md), GPU root cause: [`M2_GPU_VISIBILITY.md`](M2_GPU_VISIBILITY.md).
 
 ## M2 scope and scientific claim
 

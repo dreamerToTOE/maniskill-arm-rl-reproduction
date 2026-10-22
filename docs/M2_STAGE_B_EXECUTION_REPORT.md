@@ -1,16 +1,15 @@
 # M2 Stage B — PPO Pilot (plumbing validation)
 
-> **Status: `PARTIAL` — the pipeline ran end to end, but the authorized run was cut at
-> 29/40 iterations by a supervisor bug, not by a training failure.**
-> 185,600 training env steps, 6/8 periodic checkpoints, 6 evaluations, **end-to-end
-> SPS 1516.8**, loop SPS 2563, device peak 4937 MiB.
-> **The kill was my instrumentation defect**: the child's stdout was block-buffered
-> (piped), so the liveness watchdog saw zero lines and fired at 120 s while PPO was
-> happily training. Fixed (`-u` + `PYTHONUNBUFFERED=1` + a startup grace).
-> A clean 40/40 run is **attempt 2** and needs the researcher's go-ahead.
+> **Status: `PASS` — 40/40 iterations, exit 0, 106.65 s, 9 checkpoint files.**
+> The pipeline is validated end to end on the pinned upstream script: sampling → rollout
+> → GAE → PPO update → evaluation → TensorBoard → checkpoint.
+> **End-to-end SPS 2400.4**, loop SPS 2600, peak device VRAM **5137 MiB**, min free 2682 MiB.
+> 256,000 training env steps + 3,200 evaluation env steps, both counted separately.
 >
-> Date: 2026-10-21 · Attempt 1 executed by the researcher at 20:51–20:53 KST
-> Base commit: `6f86e8b` · Classification: **ADAPTATION / PLUMBING_ONLY**
+> Date: 2026-10-21 · Attempt 1 (20:51) was killed at 29/40 by a supervisor buffering bug;
+> attempt 2 (21:08) is the clean run recorded here. Both in the researcher's terminal —
+> the agent session still has no GPU (`docs/M2_GPU_VISIBILITY.md`).
+> Base commit: `63520da` · Classification: **ADAPTATION / PLUMBING_ONLY**
 > Upstream: `examples/baselines/ppo/ppo.py` @ ManiSkill `v3.0.1`
 > = `a4a4f9272ad64b1564035874b605ceb687b63ed8`, blob `66802de0653061da550d6600d6346be374dbf974`
 > Env: `PickCube-v1`, 128 envs, 256,000 env steps, seed 9351, RTX 3070 8 GiB.
@@ -161,127 +160,139 @@ condition did not trigger.
 
 ---
 
-## 3. Phase 3 — GPU environment and how the run was launched
+## 3. Phase 3 — GPU environment and how the runs were launched
 
-The agent session still cannot reach the GPU (`NO_NODES`, exit 3), so attempt 1 was
-launched by the researcher in their terminal at 20:51 KST with:
+The agent session cannot reach the GPU (`NO_NODES`, exit 3), so both attempts ran in the
+researcher's terminal. Command (attempt 2, verbatim):
 
 ```bash
 cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
+rm -rf runs/PickCube-v1__ppo__9351__stageB
 ./.venv-maniskill/bin/python scripts/m2_stage_b_pilot.py 2>&1 | tee results/raw/m2_stage_b_console.log
 echo "exit=${PIPESTATUS[0]}"
 ```
 
-Preflight that the supervisor recorded before launching:
+Preflight recorded by the supervisor (attempt 2):
 
 | Condition | Required | Observed | Verdict |
 |---|---|---|---|
 | `nvidia-smi` | rc 0 | rc 0 | pass |
-| Free VRAM at start | ≥ 3072 MiB | **6460 MiB** | pass |
+| Free VRAM at start | ≥ 3072 MiB | **6460 MiB** (attempt 1: 6460) | pass |
 | Conflicting compute apps | none heavy | `gnome-remote-desktop-daemon`, 157 MiB | pass (desktop, not training) |
 | `ppo.py` blob SHA | `66802de0…` | `66802de0…` | pass |
 
-So the environment was clean; the failure was entirely on the supervision side (§8).
+---
+
+## 4. Phase 4 — what happened
+
+### 4.1 Attempt 2 (21:08) — PASS
+
+```
+Epoch: 1 … Epoch: 40, global_step=249600
+model saved to runs/…/final_ckpt.pt
+status=PASS iterations=40 wall=106.65s e2e_sps=2400.4   exit=0
+```
+
+40/40 iterations, 8 evaluations at iterations 1/6/11/16/21/26/31/36, **9 checkpoint
+files** (8 periodic + `final_ckpt.pt`), 9.96 MB of output. The stdout now arrives line by
+line, so the two-phase watchdog saw every `Epoch:` line and never fired.
+
+### 4.2 Attempt 1 (20:51) — KILLED at 29/40, kept as the record of the bug
+
+Supervisor killed it at 122.36 s reporting `no iteration progress for 120s`,
+`iterations=0`, `e2e_sps=0.0`. **That report was wrong**: the artifacts showed 29/40
+iterations (`time/step` 185,600), 6 checkpoints, a 30 KB event file — and a **0-byte
+child log**.
+
+Root cause: `subprocess.Popen(..., stdout=PIPE)` makes the child's stdout a pipe, so
+CPython block-buffers it (4–8 KB); the `Epoch:` lines never reached the watchdog and
+`SIGTERM` discarded the buffer. Compounding it, the 120 s rule was clocked from `t0`,
+and that run's **cold start** (first-ever `rgb_array` render-target compile plus two
+PhysX scene builds) took ≈50 s.
+
+Fixed before attempt 2: `python -u` + `PYTHONUNBUFFERED=1`; two-phase watchdog (300 s
+grace until the first output line, then 120 s/iteration, 1200 s wall on top); iteration
+count reconciled as `max(stdout, event file)`; `--harvest` can rebuild metrics from
+artifacts if stdout is ever lost again. **Warm start is only 8.2 s** (106.65 s total −
+98.5 s of loop), which is why the cold-start cost is now documented separately rather
+than folded into "startup".
 
 ---
 
-## 4. Phase 4 — what actually happened
+## 5. Phase 5 — measurements (attempt 2, 40/40)
 
-The supervisor killed the child at **122.36 s** with the message
-`no iteration progress for 120s`, and reported `iterations=0`, `e2e_sps=0.0`.
-**That report was wrong.** The artifacts prove the opposite:
-
-| Artifact | Content | Meaning |
-|---|---|---|
-| `runs/PickCube-v1__ppo__9351__stageB/ckpt_{1,6,11,16,21,26}.pt` | 6 files, 1,155,150–1,155,683 B each | checkpointing worked, at exactly the expected iterations |
-| `events.out.tfevents.*` | 30,250 B, 22 scalar tags, 29 logged iterations | TensorBoard logging + full metric record |
-| `results/raw/m2_stage_b_pilot.log` | **0 bytes** | the child's stdout never reached the supervisor — block-buffered pipe |
-| last logged `time/step` | 185,600 = 29 × 6,400 | **29 of 40 iterations completed** |
-
-Root cause: `subprocess.Popen(..., stdout=PIPE, text=True)` makes the child's stdout a
-pipe, and CPython then block-buffers it (4–8 KB). `ppo.py`'s prints ("####", "Running
-training", "Epoch: n", "SPS: n") sat in that buffer, so the `Epoch:`-based watchdog
-never saw a line, and `SIGTERM` discarded the buffer — hence a 0-byte log.
-
-Two defects, both mine, both fixed:
-
-1. **Buffering.** The child is now launched with `-u` (interpreter flag, not a change to
-   `ppo.py`) and `PYTHONUNBUFFERED=1`.
-2. **The watchdog clocked startup with the loop rule.** Import + two PhysX scene builds
-   + render-target setup took **≈50 s** here (122.36 s wall − 72.4 s of loop), so even
-   with output arriving, a 120 s window measured from `t0` is the wrong instrument.
-   The watchdog is now two-phase: a **300 s startup grace** until the first output line,
-   then the **120 s** loop rule. The 1200 s wall clock still bounds everything.
-
----
-
-## 5. Phase 5 — measurements (attempt 1, harvested from the artifacts)
-
-Rebuilt with `--harvest`, which reads the event file and the surviving checkpoints
-instead of trusting the lost stdout. Machine-readable: `results/m2_pilot_summary.json`.
+Machine-readable: `results/m2_pilot_summary.json` (`status=PASS`, `harvested` absent —
+these are the live values).
 
 | # | Metric | Value |
 |---|---|---|
-| 1 | Training environment steps | **185,600** (29 × 6,400) of the 256,000 authorized |
-| 2 | Evaluation environment steps (separate) | **2,400** (6 evaluations × 50 steps × 8 envs) |
-| 3 | Completed iterations | **29 / 40** |
-| 4 | Optimizer updates | ≤ **3,712** (29×4×32 upper bound; `target_kl` can break early, upstream prints no count) |
-| 5 | Training-loop SPS (`charts/SPS`) | last **2563**, mean **2514.3**, first 1451 (cold) |
-| 6 | **End-to-end SPS** | **1516.8** = 185,600 / 122.36 s |
-| 7 | Rollout time per iteration | mean **1.614 s** (min 1.328, max 1.817) |
-| 8 | PPO update time per iteration | mean **0.461 s** (min 0.158, max 0.850) |
-| 9 | Peak device VRAM | **4937 MiB** |
-| 10 | Minimum free VRAM | **2882 MiB** (floor was 1536 — never close) |
-| 11 | Policy loss | last **+0.0151**, mean −0.0009, range −0.0467…+0.0468 |
-| 12 | Value loss | last **0.0134**, mean 0.0101, min 0.0024 |
-| 13 | Approx KL | last **0.0358**, max **0.1033** (crossed `target_kl=0.1` once) |
-| 14 | Clip fraction | last **0.3656**, mean 0.3406 |
-| 15 | Explained variance | **−1.03 → +0.832** (mean 0.553) — the critic went from worse than the mean to useful |
-| 16 | Evaluation success rate | **0.0** on all 6 evaluations (train `success_once` also 0) |
-| 17 | Checkpoints | **6 periodic, 0 final**, 1.156 MB each (6.9 MB total) |
-| 18 | Exit code / verdict | child `-15` (SIGTERM), supervisor `9`, **KILLED** |
+| 1 | Training environment steps | **256,000** (40 × 6,400) — exactly the authorized budget |
+| 2 | Evaluation environment steps (separate) | **3,200** (8 evaluations × 50 steps × 8 envs) |
+| 3 | Completed iterations | **40 / 40** |
+| 4 | Optimizer updates | ≤ **5,120** (40×4×32 upper bound; `target_kl` can break early, upstream prints no count) |
+| 5 | Training-loop SPS (`charts/SPS`) | last **2600**, mean **2575.5**, min 1701 (first iteration), max 2818 |
+| 6 | **End-to-end SPS** | **2400.4** = 256,000 / 106.65 s |
+| 7 | Rollout time per iteration | mean **1.617 s** (min 1.238, max 1.798) |
+| 8 | PPO update time per iteration | mean **0.444 s** (min 0.155, max 0.510) |
+| 9 | Peak device VRAM | **5137 MiB** (73 % of 8192) |
+| 10 | Minimum free VRAM | **2682 MiB** (floor 1536 — never close) |
+| 11 | Policy loss | last **+0.0276**, mean +0.0046, range −0.0467…+0.0525 |
+| 12 | Value loss | last **0.0202**, mean 0.0129, min 0.0024 |
+| 13 | Approx KL | last **0.0313**, mean 0.0397, max **0.1218** (twice above `target_kl=0.1`) |
+| 14 | Clip fraction | last **0.398**, mean 0.358 |
+| 15 | Explained variance | last **+0.848**, mean 0.635, first **−1.030** |
+| 16 | Evaluation success rate | **0.0** on all 8 evaluations |
+| 17 | Checkpoints | **9** = 8 periodic + 1 final, 1.156 MB each, **9.92 MB** total |
+| 18 | Exit code / verdict | **0 / PASS** |
 
-Supporting detail: `train/return` **2.48 → 9.96** monotone-ish over 29 iterations;
-`losses/entropy` 7.35 → 6.42; `time/rollout_fps` mean **3989** (pure sampling);
-output storage 6.9 MB of the 300 MB cap.
+Evaluation curve (8 points, 3,200 env steps total):
 
-**Where the three SPS numbers come from, and why they differ:**
+| step | 0 | 32k | 64k | 96k | 128k | 160k | 192k | 224k |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `eval/return` | 2.760 | 5.877 | 8.044 | 8.030 | 10.194 | **15.134** | 14.812 | 13.116 |
+| `eval/reward` | 0.0552 | 0.1175 | 0.1609 | 0.1606 | 0.2039 | **0.3027** | 0.2962 | 0.2623 |
+| `eval/success_once` | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+
+Every evaluation episode ran the full 50 steps (`eval_episode_len` = 50.0 throughout), so
+the return is a genuine 50-step return, not a shortened one.
+
+**Where the three SPS numbers come from:**
 
 | Figure | Value | What it includes |
 |---|---:|---|
-| rollout fps | 3,989 | sampling only (6,400 env-steps ÷ rollout_time) |
-| `charts/SPS` | 2,563 | sampling + GAE + 128 optimizer steps + logging, excludes import/build |
-| end-to-end | 1,517 | the whole child: import, 2 scene builds, 6 evals, everything |
+| rollout fps (`time/rollout_fps`) | 3,978 mean | sampling only (6,400 env-steps ÷ rollout_time) |
+| `charts/SPS` | 2,600 | sampling + GAE + 128 optimizer steps + logging; excludes import/build |
+| end-to-end | 2,400 | the whole child: import, 2 scene builds, 8 evaluations, everything |
 
-The gap between 1,517 and 2,563 is the **≈50 s startup** — which is exactly why the
-instruction's warning ("upstream SPS does not include the whole process lifetime") mattered.
+Warm start = **8.2 s**, i.e. 7.7 % of wall clock. At 50M steps that amortises to nothing.
 
 ---
 
 ## 6. Phase 6 — scientific interpretation
 
-Classification: **ADAPTATION / PLUMBING_ONLY**. What attempt 1 *does* establish:
+Classification: **ADAPTATION / PLUMBING_ONLY**. Established:
 
-- ✅ environment sampling, GAE, PPO updates, evaluation, TensorBoard logging and
-  checkpointing all execute on this host, with the pinned upstream script unmodified;
-- ✅ VRAM under the real training path (`render_mode="rgb_array"`, 128 envs + 8 eval envs)
-  peaks at **4937 MiB** — **+1006 MiB (+26 %)** over A1's render-free 3931 MiB. That is
-  the audit finding from §1.4 measured, and it leaves 2882 MiB free, far above the floor;
-- ✅ the loss/return curves move in a sane direction over 29 iterations (explained
-  variance −1.03 → 0.83, return 2.48 → 9.96).
+- ✅ the full loop runs on the pinned upstream `ppo.py`, unmodified: 256,000 env steps,
+  40 PPO updates, 8 evaluations, TensorBoard logging, 9 checkpoints, exit 0, inside a
+  1200 s budget with 106.65 s used;
+- ✅ **VRAM under the real training path: 5137 MiB peak** (`render_mode="rgb_array"`,
+  128 train + 8 eval envs) — **+1206 MiB (+31 %) over A1's render-free 3931 MiB**,
+  confirming the pre-flight audit; 2682 MiB still free, so 128 envs is safe on 8 GiB;
+- ✅ numerically sane optimisation: explained variance **−1.03 → +0.85**, value loss
+  bounded in [0.002, 0.030], entropy 7.35 → 6.13, KL mostly below the 0.1 target.
 
-What it does **not** establish, and must not be claimed:
+Not established, and must not be claimed:
 
-- ❌ 40/40 completion or a final checkpoint — the run was truncated by tooling;
-- ❌ any success-rate conclusion: **0.0 at 185k steps is expected** (0.37 % of the
-  official 50M budget) and says nothing about whether PPO works on PickCube;
-- ❌ baseline reproduction (different script, env count, horizon, one seed);
-- ❌ PPO convergence, or any comparison with published numbers.
-
-**Is the pipeline validated?** For the objective in the instruction — "sampling → rollout
-→ GAE → PPO optimization → evaluation → TensorBoard → checkpoint" — **yes, every stage
-produced evidence**. The stage is `PARTIAL` only because the authorized run did not reach
-40 iterations and no `final_ckpt.pt` exists.
+- ❌ **no success**: `eval/success_once` = 0 on all 8 evaluations. At 0.51 % of the
+  official 50M budget this is the expected outcome, not a verdict on PPO. (One training
+  step at global_step 200,448 logged `train/success_once` = 1.0 — a single completed
+  episode did succeed — but 8 eval envs × 1 episode each can easily miss a rare success,
+  and one event is not a rate.)
+- ❌ baseline reproduction: `ppo.py` not `ppo_fast.py`, 128 envs not 4096, 256k not 50M,
+  one seed not three, no cudagraphs;
+- ❌ convergence, final policy quality, or any comparison with published numbers;
+- ❌ that this SPS generalises: it is one run on one desktop card with a desktop session
+  resident.
 
 ---
 
@@ -306,28 +317,37 @@ Nothing in the algorithm, optimizer, GAE, reward, or network architecture was mo
 
 | Question | Answer |
 |---|---|
-| Did PPO fail? | **No.** 29 iterations completed, losses finite, explained variance rising, 6 checkpoints written. |
-| Did the GPU fail? | No. Peak 4937 MiB, min free 2882 MiB, no OOM, no NaN. |
-| Did the harness fail? | **Yes, twice, both in the supervisor:** piped stdout was block-buffered (0-byte log), and the 120 s liveness rule was applied to the ≈50 s startup window. |
-| Class | (A) local implementation — instrumentation, not the experiment |
-| Evidence | 0-byte child log vs 30 KB event file + 6 checkpoints; `kill_reason="no iteration progress for 120s"` with `iterations=0` while `time/step` reached 185,600 |
-| Fix | `-u` + `PYTHONUNBUFFERED=1`; two-phase watchdog (300 s startup grace, then 120 s); iteration count now reconciled against the event file (`max(stdout, events)`); `--harvest` rebuilds metrics from artifacts if stdout is ever lost again |
-| Retry policy | **no automatic retry** — attempt 1 consumed the authorization; attempt 2 requires an explicit go-ahead |
+| Did PPO fail? | No. 40/40 iterations, finite losses, explained variance rising, 9 checkpoints. |
+| Did the GPU fail? | No. Peak 5137 MiB, min free 2682 MiB, no OOM, no NaN. |
+| Did the harness fail? | **Yes, on attempt 1 only** — piped stdout was block-buffered (0-byte log) and the 120 s rule was clocked from `t0` over a ≈50 s cold start. Fixed; attempt 2 passed with no incidents. |
+| Class | (A) local implementation — instrumentation, never the experiment |
+| Evidence | attempt 1: 0-byte child log vs 30 KB event file + 6 ckpts; attempt 2: 40/40 with line-by-line stdout |
+| Retry policy | attempt 1 consumed the authorization; attempt 2 was explicitly approved. No further run is planned |
 
 ---
 
 ## 9. Next actions
 
-1. **Attempt 2 (needs go-ahead).** Same command, fixed supervisor; expect 40/40 in
-   ≈170 s and 9 checkpoint files:
-   ```bash
-   cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
-   rm -rf runs/PickCube-v1__ppo__9351__stageB        # start from a clean run dir
-   ./.venv-maniskill/bin/python scripts/m2_stage_b_pilot.py 2>&1 | tee results/raw/m2_stage_b_console.log
-   ```
-2. Then §5 is filled with 40/40 numbers, including `final_ckpt.pt` and the 8th evaluation.
-3. **Scaling decision, using the measured 1,517 e2e / 2,563 loop SPS** (not the A1
-   simulator number): at 128 envs, 50M steps ≈ **5.4 h per seed** by loop SPS (≈9.2 h by
-   this run's end-to-end, which is startup-inflated at 122 s), i.e. ≈**16 h for three
-   seeds**. The official 4096-env configuration would be far faster but is unmeasured
-   here and does not fit in 8 GiB.
+1. **Local viability, from measured numbers** (128 envs, `ppo.py`, seed 9351):
+
+   | Basis | 50M steps / seed | 3 seeds |
+   |---|---:|---:|
+   | loop SPS 2600 | **5.34 h** | **16.0 h** |
+   | end-to-end 2400 (this run) | 5.79 h | 17.4 h |
+
+   At 128 envs a 3-seed PickCube run is **~16–17 h** on this card — feasible locally
+   within the "under ~2 days" bar, with no cloud rental needed. The official 4096-env
+   configuration would be far faster but does not fit in 8 GiB.
+
+2. **If throughput matters more than locality**, the lever is env count, not the GPU:
+   A1 showed 256 envs cost no extra VRAM (3912 → 3931 MiB without rendering) but
+   +82 % throughput. A 256-env PPO pilot is the obvious next bounded experiment; note it
+   needs ~+1.2 GiB for rendering, so peak would land near 6.3 GiB of 8.2 GiB — tight but
+   inside the 1536 MiB floor. **Not authorized, not run.**
+
+3. **Do not** raise `total_timesteps` and call it a baseline reproduction: that still
+   requires `ppo_fast.py`, 4096 envs, the official 4-step/8-epoch schedule, cudagraphs,
+   and three seeds — none of which this stage measures.
+
+4. Success rate stays untested at this budget. Any learning claim requires the full
+   50M-step run, which needs its own approval.
