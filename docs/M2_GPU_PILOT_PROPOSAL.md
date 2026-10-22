@@ -164,6 +164,11 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 > 5/5 iteration，loop **15117** SPS（2600→4435→8236→15117，5.81× 于 128），峰值显存 **4862 MiB /
 > 最低 free 2956 MiB**——**到 1024 显存仍是平的**，推翻了"8 GiB 瓶颈是并行环境"的旧判断。
 > 稳态外推：1024 env ≈ **0.92 h/seed、三 seed ~2.8 h**。详见 `docs/M2_STAGE_B_1024_PILOT.md`。
+>
+> **2048-env pilot（2026-10-22 12:14，PASS）**：研究者授权测 2048（官方 4096 的一半宽度）。
+> 2/2 iteration，loop **22475** SPS（2600→4435→8236→15117→22475，8.64× 于 128；1024→2048 边际降到 0.74），
+> 峰值显存 **5148 MiB / 最低 free 2670 MiB**——**16× 范围内显存仍是平的**。
+> 稳态外推：2048 env ≈ **0.62 h/seed、三 seed ~1.85 h**。详见 `docs/M2_STAGE_B_2048_PILOT.md`。
 
 ### 明确不能从这个 pilot 得出的结论
 

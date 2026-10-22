@@ -1,0 +1,309 @@
+{
+  "kind": "m2_stage_b_pilot",
+  "config": {
+    "stage": "B",
+    "classification": "ADAPTATION / PLUMBING_ONLY",
+    "env_id": "PickCube-v1",
+    "num_envs": 2048,
+    "num_steps": 50,
+    "batch_size": 102400,
+    "num_iterations": 2,
+    "exp_name": "PickCube-v1__ppo__9351__stageB_n2048",
+    "total_timesteps": 256000,
+    "update_epochs": 4,
+    "num_minibatches": 32,
+    "num_eval_envs": 8,
+    "eval_freq": 5,
+    "seed": 9351,
+    "capture_video": false,
+    "track": false,
+    "save_model": true,
+    "wall_limit_s": 1200.0,
+    "min_free_mib": 1536,
+    "start_free_mib": 3072,
+    "storage_limit_mb": 300,
+    "upstream_commit": "a4a4f9272ad64b1564035874b605ceb687b63ed8",
+    "ppo_blob_sha": "66802de0653061da550d6600d6346be374dbf974",
+    "ppo_path": "/home/ubuntu2004/.cache/ms-upstream-ppo/ppo.py",
+    "interpreter": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python"
+  },
+  "started_wall": "2026-10-22T12:15:33+0900",
+  "status": "PASS",
+  "command": "/home/ubuntu2004/lmy/maniskill-arm-rl-reproduction/.venv-maniskill/bin/python -u /home/ubuntu2004/.cache/ms-upstream-ppo/ppo.py --env-id PickCube-v1 --exp-name PickCube-v1__ppo__9351__stageB_n2048 --num-envs 2048 --num-steps 50 --total-timesteps 256000 --update-epochs 4 --num-minibatches 32 --num-eval-envs 8 --eval-freq 5 --seed 9351 --no-capture-video --no-track --save-model",
+  "preflight": {
+    "nvidia_smi": {
+      "binary": "/usr/bin/nvidia-smi",
+      "returncode": 0,
+      "stdout": "NVIDIA GeForce RTX 3070, 580.178.04, 8192, 1038, 6781",
+      "stderr": ""
+    },
+    "free_mib": 6781,
+    "compute_apps": [
+      {
+        "pid": "2855",
+        "process": "/usr/libexec/gnome-remote-desktop-daemon",
+        "used_mib": 157
+      }
+    ],
+    "ppo_blob_sha_actual": "66802de0653061da550d6600d6346be374dbf974"
+  },
+  "run_dir": "runs/PickCube-v1__ppo__9351__stageB_n2048",
+  "wall_s": 20.18,
+  "returncode": 0,
+  "loop_sps_last": 22475,
+  "tensorboard": {
+    "present": true,
+    "event_file": "events.out.tfevents.1792638942.ubuntu2004.16593.0",
+    "size_bytes": 4095,
+    "all_tags": [
+      "eval/success_once",
+      "eval/return",
+      "eval/episode_len",
+      "eval/reward",
+      "eval/success_at_end",
+      "train/success_once",
+      "train/return",
+      "train/episode_len",
+      "train/reward",
+      "charts/learning_rate",
+      "losses/value_loss",
+      "losses/policy_loss",
+      "losses/entropy",
+      "losses/old_approx_kl",
+      "losses/approx_kl",
+      "losses/clipfrac",
+      "losses/explained_variance",
+      "charts/SPS",
+      "time/step",
+      "time/update_time",
+      "time/rollout_time",
+      "time/rollout_fps"
+    ],
+    "losses/policy_loss": {
+      "present": true,
+      "n": 2,
+      "first": -0.010075,
+      "last": -0.036642,
+      "mean": -0.023358,
+      "min": -0.036642,
+      "max": -0.010075,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "losses/value_loss": {
+      "present": true,
+      "n": 2,
+      "first": 0.007198,
+      "last": 0.002959,
+      "mean": 0.005079,
+      "min": 0.002959,
+      "max": 0.007198,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "losses/approx_kl": {
+      "present": true,
+      "n": 2,
+      "first": 0.006827,
+      "last": 0.022632,
+      "mean": 0.014729,
+      "min": 0.006827,
+      "max": 0.022632,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "losses/clipfrac": {
+      "present": true,
+      "n": 2,
+      "first": 0.12061,
+      "last": 0.249897,
+      "mean": 0.185254,
+      "min": 0.12061,
+      "max": 0.249897,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "losses/explained_variance": {
+      "present": true,
+      "n": 2,
+      "first": -1.217621,
+      "last": 0.458446,
+      "mean": -0.379588,
+      "min": -1.217621,
+      "max": 0.458446,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "losses/entropy": {
+      "present": true,
+      "n": 2,
+      "first": 7.346998,
+      "last": 7.324659,
+      "mean": 7.335828,
+      "min": 7.324659,
+      "max": 7.346998,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "losses/old_approx_kl": {
+      "present": true,
+      "n": 2,
+      "first": 0.009249,
+      "last": 0.022575,
+      "mean": 0.015912,
+      "min": 0.009249,
+      "max": 0.022575,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "charts/SPS": {
+      "present": true,
+      "n": 2,
+      "first": 17930.0,
+      "last": 22475.0,
+      "mean": 20202.5,
+      "min": 17930.0,
+      "max": 22475.0,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "charts/learning_rate": {
+      "present": true,
+      "n": 2,
+      "first": 0.0003,
+      "last": 0.0003,
+      "mean": 0.0003,
+      "min": 0.0003,
+      "max": 0.0003,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "time/rollout_time": {
+      "present": true,
+      "n": 2,
+      "first": 2.802772,
+      "last": 2.922263,
+      "mean": 2.862517,
+      "min": 2.802772,
+      "max": 2.922263,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "time/update_time": {
+      "present": true,
+      "n": 2,
+      "first": 0.505988,
+      "last": 0.471696,
+      "mean": 0.488842,
+      "min": 0.471696,
+      "max": 0.505988,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "time/rollout_fps": {
+      "present": true,
+      "n": 2,
+      "first": 36535.265625,
+      "last": 35041.335938,
+      "mean": 35788.300781,
+      "min": 35041.335938,
+      "max": 36535.265625,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "eval/success_once": {
+      "present": true,
+      "n": 1,
+      "first": 0.0,
+      "last": 0.0,
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "non_finite": 0,
+      "last_step": 0
+    },
+    "eval/return": {
+      "present": true,
+      "n": 1,
+      "first": 2.759918,
+      "last": 2.759918,
+      "mean": 2.759918,
+      "min": 2.759918,
+      "max": 2.759918,
+      "non_finite": 0,
+      "last_step": 0
+    },
+    "eval/episode_len": {
+      "present": true,
+      "n": 1,
+      "first": 50.0,
+      "last": 50.0,
+      "mean": 50.0,
+      "min": 50.0,
+      "max": 50.0,
+      "non_finite": 0,
+      "last_step": 0
+    },
+    "train/success_once": {
+      "present": true,
+      "n": 6,
+      "first": 1.0,
+      "last": 0.0,
+      "mean": 0.333333,
+      "min": 0.0,
+      "max": 1.0,
+      "non_finite": 0,
+      "last_step": 204800
+    },
+    "train/return": {
+      "present": true,
+      "n": 6,
+      "first": 3.37797,
+      "last": 3.038789,
+      "mean": 2.823989,
+      "min": 1.731407,
+      "max": 3.436387,
+      "non_finite": 0,
+      "last_step": 204800
+    }
+  },
+  "vram": {
+    "min_free_mib": 2670,
+    "peak_used_mib": 5148,
+    "samples": 2,
+    "note": "device level via nvidia-smi every ~5 s; torch allocations are not counted separately here"
+  },
+  "checkpoints": {
+    "count": 2,
+    "periodic": 1,
+    "final": 1,
+    "files": [
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n2048/ckpt_1.pt",
+        "mb": 1.102
+      },
+      {
+        "path": "runs/PickCube-v1__ppo__9351__stageB_n2048/final_ckpt.pt",
+        "mb": 1.103
+      }
+    ],
+    "total_mb": 2.205
+  },
+  "storage_mb": 2.21,
+  "iterations_stdout": 2,
+  "iterations_from_events": 2,
+  "iterations_completed": 2,
+  "steps": {
+    "train_env_steps": 204800,
+    "eval_env_steps": 400,
+    "note": "train and eval counted separately; eval is 50 steps x 8 envs per evaluation",
+    "optimizer_updates_upper_bound": 256,
+    "optimizer_updates_note": "upper bound: target_kl=0.1 can break an epoch early, so the true count can be lower and is not printed by upstream ppo.py"
+  },
+  "sps": {
+    "end_to_end": 10148.7,
+    "loop_from_stdout": 22475,
+    "loop_from_tensorboard": 22475.0,
+    "definition": "end_to_end = train_env_steps / wall clock of the whole child, so it includes env creation, evaluation and logging; ppo.py's own SPS does not"
+  }
+}
