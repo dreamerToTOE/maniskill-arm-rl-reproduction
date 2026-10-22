@@ -154,6 +154,11 @@ cd /home/ubuntu2004/lmy/maniskill-arm-rl-reproduction
 > **4601 MiB / 最低 free 3217 MiB**——加一倍环境**没有**触发显存墙（128→256 的场景+渲染成本基本不随
 > env 数涨，与 A1 一致）。稳态外推：256 env ≈ **3.13 h/seed、三 seed ~9.4 h**（128 是 ~16 h）。
 > 详见 `docs/M2_STAGE_B_256_PILOT.md`。
+>
+> **512-env pilot（2026-10-22 11:47，PASS）**：研究者明确授权测 512（A1 硬上限），"不够就杀停"。
+> 结果**没触发杀停**：10/10 iteration，loop **8236** SPS（128→256→512 = 2600→4435→8236，3.17× 于 128、
+> 效率 0.79），峰值显存 **4777 MiB / 最低 free 3041 MiB**——到 512 显存仍是平的。
+> 稳态外推：512 env ≈ **1.7 h/seed、三 seed ~5 h**。详见 `docs/M2_STAGE_B_512_PILOT.md`。
 
 ### 明确不能从这个 pilot 得出的结论
 

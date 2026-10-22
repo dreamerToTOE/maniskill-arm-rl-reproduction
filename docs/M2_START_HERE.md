@@ -1,6 +1,6 @@
 # M2 START HERE — PickCube official PPO baseline (study first; no training)
 
-> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / **STAGE A0 PASSED (12/12, 3.496 s)** / **STAGE A1 PASSED (4/4, 27.706 s)** / PHYSX-CUDA-VERIFIED / PARALLEL-SCALING-MEASURED-TO-256 / SIM-THROUGHPUT-MEASURED / **STAGE-B-PASSED (40/40, E2E 2400.4 SPS) / 256-PILOT-PASSED (loop 4435 SPS, VRAM flat).**
+> **2026-10-21, state: SOURCE-VERIFIED / LEARNING-PACK-CORRECTED / **STAGE A0 PASSED (12/12, 3.496 s)** / **STAGE A1 PASSED (4/4, 27.706 s)** / PHYSX-CUDA-VERIFIED / PARALLEL-SCALING-MEASURED-TO-256 / SIM-THROUGHPUT-MEASURED / **STAGE-B-PASSED / 256-PILOT-PASSED (loop 4435) / 512-PILOT-PASSED (loop 8236, VRAM flat).**
 >
 > Prerequisite: M1 PASSED at commit `d08e5870368c12644ff385e17f78068ad4bbb774`. Researcher approved **M1 isolated installation + 3-zero-action CPU smoke only**. This is not approval for M2 GPU simulation benchmarks or PPO training.
 >
